@@ -21,8 +21,8 @@ if not(os.path.isdir(logdir)):
 def loggraph():
 	"""Save a graph to the log in Google Drive in both png and pdf formats."""
 	timestamp = int(time.time())
-	pngfigname = logdir+'graphs/'+str(timestamp)+'.png'
-	pdffigname = logdir+'graphs/'+str(timestamp)+'.pdf'
+	pngfigname = logdir+'graphs/plot'+str(timestamp)+'.png'
+	pdffigname = logdir+'graphs/plot'+str(timestamp)+'.pdf'
 	print(pngfigname)
 	print(pdffigname)
 	plt.savefig(pngfigname, dpi=300)
@@ -30,6 +30,6 @@ def loggraph():
 def logdata(description, data):
 	"""Save data to a pickle located in the Google Drive log."""
 	timestamp = int(time.time())
-	picklename = logdir+'data/'+str(timestamp)+'.pickle'
+	picklename = logdir+'data/data'+str(timestamp)+'.pickle'
 	pickle.dump([description, data], open(picklename,'wb'))
 	print('File saved succesfully to '+picklename+'.')
