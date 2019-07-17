@@ -20,14 +20,17 @@ import os
 # include analog mode case
 #######################
 
-# defaults
-global default_port
-global default_baudrate
-global default_lf
+# defaults and others
+global defaults
 global cube_notes
-default_port =  '/dev/ttyUSB0'
-default_baudrate = 19200
-default_lf = '\r\n'
+defaults = {
+'port' :  '/dev/ttyUSB0',
+'baudrate' : 19200,
+'lf' : '\r\n',
+'timeout': 0.1, # as per the serial conn
+'write_timeout': 0.1, # as per the serial conn
+'latency_t': 0.1 # used here and there as needed
+}
 
 # add comments here
 cube_notes = '''
@@ -36,9 +39,9 @@ Cube is a tiny little thing.
 
 class Cube:
     def __init__(self,
-                port=default_port,
-                baudrate=default_baudrate,
-                lf=default_lf,
+                port=defaults['port'],
+                baudrate=defaults['baudrate'],
+                lf=defaults['lf'],
                 verbose=False,
                 dummy=False):
         # must match name of pdf filename, save the extension
@@ -50,8 +53,9 @@ class Cube:
         self.port = port
         self.lf = lf
         self.platform = sys.platform
-        self.timeout = 0.1
-        self.write_timeout = 0.1
+        self.timeout = defaults['timeout']
+        self.latency_t = defaults['latency_t']
+        self.write_timeout = defaults['write_timeout']
         self.notes = cube_notes
         # set up the serial connection
         if not dummy:
@@ -73,7 +77,7 @@ class Cube:
     def sendtodev(self,command):
         '''send commands through the serial connection'''
         self.serialconn.write(self.makecmd(command).encode())
-        sleep(self.timeout)
+        sleep(self.latency_t)
         return '\n'.join([s.decode()[:-2] for s in self.serialconn.readlines()])
     def manual(self):
         '''open the pdf manual'''
@@ -95,9 +99,9 @@ class Cube:
             return "on"
         return "error"
     def reconnect(self,
-            port=default_port,
-            baudrate=default_baudrate,
-            lf=default_lf):
+            port=defaults['port'],
+            baudrate=defaults['baudrate'],
+            lf=defaults['lf']):
         '''restablish the serial connection'''
         self.port = port
         self.baudrate = baudrate
