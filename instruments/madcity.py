@@ -40,6 +40,14 @@ class Madpiezo():
 		self.madlib = cdll.LoadLibrary(path_to_dll)
 		self.handler = self.mcl_start()
 		atexit.register(self.mcl_close)
+    def manual(self):
+        '''open the pdf manual'''
+        platform_open_cmds = {'linux':'xdg-open','darwin':'open'}
+        try:
+            print("Opening the manual.")
+            os.system('%s "%s"' % (platform_open_cmds[self.platform],self.manual_fname))
+        except:
+            print("wups, could not open")
 	def mcl_start(self):
 		"""
 		Requests control of a single Mad City Labs Nano-Drive.

@@ -1,9 +1,60 @@
 # Coded by David on Jul 18 2019
 # To be used with the Thorlabs Si photodiode PDA36A,
-# and a ADS1115 ADC connected to a Raspberry Pi
-# the one in lab is reading the voltage across a 50 Ohm
+# and a ADS1115 ADC connected to a Raspberry Pi.
+# The one in lab is reading the voltage across a 50 Ohm
+
+#    _____ _                _       _
+#   |_   _| |__   ___  _ __| | __ _| |__  ___
+#     | | | '_ \ / _ \| '__| |/ _` | '_ \/ __|
+#     | | | | | | (_) | |  | | (_| | |_) \__ \
+#     |_| |_| |_|\___/|_|  |_|\__,_|_.__/|___/
+#
+#     ____  ____    _    _____  __     _
+#    |  _ \|  _ \  / \  |___ / / /_   / \
+#    | |_) | | | |/ _ \   |_ \| '_ \ / _ \
+#    |  __/| |_| / ___ \ ___) | (_) / ___ \
+#    |_|   |____/_/   \_\____/ \___/_/   \_\
+#
+#
+#            NOxxOKXNNKOxx0XXKOO0XNNK0OO0XWNX0O0XNX00OO0XW
+#          WO;.....'''......'....',,.....',,'...','.....':xN
+#        NOc..,cl:..';:clc:;;:clc:;;:cllc:::ccc:::;..;cc,..;kN
+#     NOl;..':ooo:..cdooooddoooooooooooooodoooooodl..;oooc,..,cxX
+#    Xc..';coooooc..cdl:;::cclooooooooollccc:;;coo:..cooooolc;'.,O
+#    x..;ooooooooo,.,ol:;;;;::clloooolcc:::::::col'.;oooooooooo,.cN
+#    d..ldoooooooo:..co:;;:::clclooolcccc:;;,,,coc..cdooooooooo;.:X
+#    O..:ooooooooo;..coolllccc:;coool:;;::cccloodc..cdooooooodl..oW
+#    No..:oooooooo,.'loooodddol;,:ol;':loddddooool'.;ooooooooc'.cX
+#     Nx,.':oooooo,.,oooolccccoo:,cc'coolcc::loooc..:oooooo:'..oX
+#       Xx;..:oooo;.'lool;:c:;;ooloololc;:::;;ooo:..cdoooc'.,dKW
+#         Nx'.;ooo:..cooo:;::;:odooooool:;;:;:ooo;..looo;.'xN
+#          Wk..:ol,.'looooc:clol:;,,;:loolcclooooc..;lc'.:K
+#           Wx..'....,looooool,''.  .''.,cooooooo;......oX
+#            WOl:cx0o.,odoooo,.;;.  .;;..'ldoooo;.:xlco0W
+#                   Nl.;ooooo:..,.  .'...;oooooc.,0
+#                    Kc.,cooooc;'....';;cooooo:.'kW
+#                     X:..,cooooooooooddoodoc,..oW
+#                     Nl.';,,;;::;;;;,,;;;;,''. :X
+#                     0,..,llc:::ccllll:cc::;''..lX
+#                    Nl.,c,';clc::;;;::;:c;',:ol'.cX
+#                   Nd.'looc;;;;:cccc::::::looooc..cX
+#                  Nd..coooooddoooooooooooooooooo;..:K
+#              NOll;. ,odlclooooooooooooooooolclo;...,ld0W
+#             Wo.':;..,oo,.:do;':ooooooo:,cod:.;l'.;:;;'.dW
+#             Nl.,cl:..:c..ldl..:ooooool,.;odl'';..coll;.:N
+#              Xd:;,.. ...;od:..cdoooolc'.;ooo;......,,,:OW
+#                WK:.....'ldo;..ldooodl:..;ooo:. .cox0XXW
+#                Nl.;llc,:ool'..,;::cc,...;oodl'..':kW
+#                X;.:lllloodl::,..,'..';;;:ooooccl;.'0
+#                WO:....,;:;;::,.:XO..looooooollc:;.'O
+#                  N0OOd:,,;:;',lK Nl...,,,,,,..'',:kW
+#                       WNNWWNXNW   NOollodolldkKXNW
+#
+#
+#
 
 import numpy as np
+import sys
 from zialab.instruments import ADS1x15
 
 class PhotoDiode:
@@ -51,6 +102,10 @@ class PhotoDiode:
         assert self.settings['adc_channel'] in [0,1,2,3], "Invalid ADC channel."
         assert self.adc_gain in [1,2,4,8,16], "Invalid ADC gain level."
         self.gain = self.gains[self.settings['gain']][self.settings['gain_load']]
+        self.shorname = 'PDA36A'
+        self.fullname = 'Thorlabs - Si Switchable Gain Detector PDA36A'
+        self.platform = sys.platform
+        self.manual_fname = './zialab/Manuals/'+self.fullname + '.pdf'
         self.scale_factor = self.settings['scale_factor']
         self.adc_gain = self.settings['adc_gain']
         self.ADC = ADS1115(gain = self.adc_gain) # create an instance of the ADC
@@ -59,6 +114,14 @@ class PhotoDiode:
         self.responsivity = np.interp(self.wavelength, responsivity[:,0], responsivity[:,1])
         self.adc_channel = self.settings['adc_channel']
         self.dc_samples = self.settings['dc_samples']
+    def manual(self):
+        '''open the pdf manual'''
+        platform_open_cmds = {'linux':'xdg-open','darwin':'open'}
+        try:
+            print("Opening the manual.")
+            os.system('%s "%s"' % (platform_open_cmds[self.platform],self.manual_fname))
+        except:
+            print("wups, could not open")
     def read_cw_optical_power(self, wavelength):
         '''returns optical power in Watts along with the statistical uncertainty'''
         # Update wavelength and responsivity if necessary

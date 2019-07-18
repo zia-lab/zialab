@@ -49,6 +49,14 @@ class Verdi():
                     print("Error: check connections and make sure serial is configured correctly.")
         else:
             self.serialconn = 'dummy'
+    def manual(self):
+        '''open the pdf manual'''
+        platform_open_cmds = {'linux':'xdg-open','darwin':'open'}
+        try:
+            print("Opening the manual.")
+            os.system('%s "%s"' % (platform_open_cmds[self.platform],self.manual_fname))
+        except:
+            print("wups, could not open")
     def makecmd(self,command):
         '''composes command according to serial config'''
         return command+self.lf
