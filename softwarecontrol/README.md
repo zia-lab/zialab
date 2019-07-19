@@ -1,4 +1,7 @@
 # Software Glue and Control
+Here included are:
++ assets to import spe files into Python arrays,
++ means to control Princeton Instrument's Lighfield through its dll,
 
 ## spe2py 
 spe2py is a module that imports a Princeton Instruments LightField (SPE 3.x) file into a python environment. 
