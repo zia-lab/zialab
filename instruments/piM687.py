@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Coded by Yang Wang circa 2019
 # Yet to be made compatible with python3.
 

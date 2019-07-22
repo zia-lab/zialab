@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 %pylab inline
 from PIL import Image, ImageOps
 from io import BytesIO

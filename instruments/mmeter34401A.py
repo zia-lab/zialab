@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Use to connect to the Agilent Multimeter
 # Coded by David on Jul 19 2019
 # Only methods to query ac/dc current or voltage are currently included

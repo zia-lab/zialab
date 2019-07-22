@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # coded by Yang Wang circa 2019
 
 import sys

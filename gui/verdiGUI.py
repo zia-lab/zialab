@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # GUI for Verdi
 # tk can be tricky to make work, good luck!
 # Coded by David on Jul 22 2019

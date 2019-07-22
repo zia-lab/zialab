@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import serial
 from time import sleep
 import atexit
@@ -24,7 +26,7 @@ class Verdi():
                 dummy=False):
         self.fullname = 'Coherent - Verdi'
         self.shortname = 'Verdi'
-        self.manual_fname = './zialab/Manuals/'+self.fullname + '.pdf'
+        self.manual_fname = './zialab/man/'+self.fullname + '.pdf'
         self.wavelength = '532'
         self.max_power = 0.5 # in watts
         self.baudrate = baudrate

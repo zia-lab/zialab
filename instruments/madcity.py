@@ -1,8 +1,4 @@
-from ctypes import cdll, c_int, c_uint, c_double
-import atexit # The atexit module defines functions to register and unregister cleanup functions
-from time import sleep
-import sys
-
+#!/usr/bin/env python3
 # ╔═══════════════════════╗
 # ║   __  __  ____ _      ║
 # ║  |  \/  |/ ___| |     ║
@@ -15,6 +11,11 @@ import sys
 
 # Created by David on July 17 2019
 # based on https://github.com/yurmor/mclpiezo/
+
+from ctypes import cdll, c_int, c_uint, c_double
+import atexit # The atexit module defines functions to register and unregister cleanup functions
+from time import sleep
+import sys
 
 global default_path_to_dll
 global mcl_notes
@@ -36,7 +37,7 @@ class Madpiezo():
         if path_to_dll == '': path_to_dll = default_path_to_dll
         self.shortname = 'MCL stage'
         self.fullname = 'MCL - Nano-LP100'
-        self.manual_fname = './zialab/Manuals/'+self.fullname + '.pdf'
+        self.manual_fname = './zialab/man/'+self.fullname + '.pdf'
 		self.madlib = cdll.LoadLibrary(path_to_dll)
 		self.handler = self.mcl_start()
 		atexit.register(self.mcl_close)
