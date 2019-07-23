@@ -59,7 +59,7 @@ class Agilent34401A():
         if self.mode.upper() != 'DC':
             print("Changing mode to DC.")
             self.sendtodev('CONF:VOLT:DC')
-        return float(self.sendtodev('MEAS:VOLT:DC?'))]
+        return float(self.sendtodev('MEAS:VOLT:DC?'))
     def get_dc_current(self):
         '''get DC current'''
         if self.mode.upper() != 'DC':
@@ -72,7 +72,7 @@ class Agilent34401A():
         if self.mode.upper() != 'AC':
             print("Changing mode to AC.")
             self.sendtodev('CONF:VOLT:AC')
-        return float(self.sendtodev('MEAS:VOLT:AC?'))]
+        return float(self.sendtodev('MEAS:VOLT:AC?'))
     def get_ac_current(self):
         '''get AC current'''
         if self.mode.upper() != 'AC':
