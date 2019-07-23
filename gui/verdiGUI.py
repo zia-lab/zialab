@@ -2,18 +2,21 @@
 
 import tkinter as tk
 import random
+import sys
 from remoteVerdi import RemoteVerdi
 
 class VerdiGUI():
     bg_color = 'white'
     text_color = '#00ff00'
     text_color = 'black'
-    def __init__(self):
+    def __init__(self, verbose=True):
         self.IP = '10.9.93.159'
-        self.verbose = False
+        self.verbose = verbose
+        self.platform = sys.platform
         self.verdi = RemoteVerdi(IP=self.IP)
         self.root = tk.Tk()
         self.root.title("Verdi")
+        #self.root.geometry("%dx%d" % (self.width, self.height))
         self.verdi_on = tk.PhotoImage(file='verdi_on.gif')
         self.verdi_off = tk.PhotoImage(file='verdi_off.gif')
         self.root.resizable(False, False)
@@ -21,7 +24,10 @@ class VerdiGUI():
         self.frame = tk.Frame()
 
         # Background image
-        self.top_image = tk.PhotoImage(file = 'verdi_background.gif')
+        if (sys.platform == 'win32'):
+            self.top_image = tk.PhotoImage(file = 'verdi_background_win.gif')
+        else:
+            self.top_image = tk.PhotoImage(file = 'verdi_background.gif')
         self.top_label = tk.Label(self.frame,
                                   image=self.top_image,
                                   borderwidth=0,
