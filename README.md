@@ -1,2 +1,2 @@
 # zialab
-Instrument control, GUIs, and software glue.
+Instrument control, GUIs, and glue code for the benefit of optics, microscopy, and spectroscopy.
