@@ -1,137 +1,143 @@
 #!/usr/bin/env python3
 
-# GUI for Verdi
-# tk can be tricky to make work, good luck!
-# Coded by David on Jul 22 2019
+import tkinter as tk
+import random
+from remoteVerdi import RemoteVerdi
 
-try:
-    import Tkinter as tk
-except ImportError:
-    import tkinter as tk
+class VerdiGUI():
+    bg_color = 'white'
+    text_color = '#00ff00'
+    text_color = 'black'
+    def __init__(self):
+        self.IP = '10.9.93.159'
+        self.verbose = False
+        self.verdi = RemoteVerdi(IP=self.IP)
+        self.root = tk.Tk()
+        self.root.title("Verdi")
+        self.verdi_on = tk.PhotoImage(file='verdi_on.gif')
+        self.verdi_off = tk.PhotoImage(file='verdi_off.gif')
+        self.root.resizable(False, False)
+        self.root.configure(background=self.bg_color)
+        self.frame = tk.Frame()
 
-import numpy as np
-import time
+        # Background image
+        self.top_image = tk.PhotoImage(file = 'verdi_background.gif')
+        self.top_label = tk.Label(self.frame,
+                                  image=self.top_image,
+                                  borderwidth=0,
+                                  highlightthickness=0)
+        self.top_label.place(x=0,
+                             y=0)
 
-import requests
+        # Power display
+        self.power_display = tk.Label(self.frame,
+                                        text='{0:.0f} mW'.format(1000*self.get_regpower()))
+        self.power_display.config(font=("TkDefaultFont",40))
+        self.power_display.grid(row=1,
+                                column=0,
+                                columnspan=3,
+                                pady=(80, 10))
 
-global shutter
-global power
+        # Entry field for changing power
+        self.entry_field_left = tk.Label(self.frame,
+                                         text='Set')
+        self.entry_field_left.grid(row=2,
+                                   column=0,
+                                   padx=5)
+        self.entry_field = tk.Entry(self.frame,
+                                    justify='center')
+        self.entry_field.bind('<Return>',
+                              self.change_power)
+        self.entry_field.grid(row=2,
+                              column=1,
+                              columnspan=1)
+        self.entry_field_right = tk.Label(self.frame,
+                                          text='mW')
+        self.entry_field_right.grid(row=2,
+                                    column=2,
+                                    padx=5)
 
-import requests
-VERDI_PI_IP='10.9.93.159'
+        # Increment section
+        self.left_increment_btn = tk.Button(self.frame,
+                                            text="↓",
+                                            command=self.decreasepower)
+        self.left_increment_btn.grid(row=3,
+                                     column=0)
+        self.increment_field = tk.Entry(self.frame,
+                                        justify='center')
+        self.increment_field.insert(0, '10')
+        self.increment_field.grid(row=3,
+                                  column=1)
+        self.left_increment_btn = tk.Button(self.frame,
+                                            text="↑",
+                                            command=self.increasepower)
+        self.left_increment_btn.grid(row=3, column=2)
 
-def verdi_set_shutter(shut):
-    '''
-    Open (1) or close (0) the shutter. Function returns the queried state of
-    the shutter right after being set.
-    '''
-    url = 'http://%s:7777/setverdi/shutter?shutter=%d' % (VERDI_PI_IP, shut)
-    return int(requests.get(url, timeout=1).content)
+        # IP field
+        self.ip_field = tk.Label(self.frame,
+                                 text='IP: ' + self.IP,
+                                 justify='center')
+        self.ip_field.config(font=("TkDefaultFont", 12, "underline"))
+        self.ip_field.grid(row=4,
+                           column=1,
+                           pady=(5, 0))
 
-def verdi_get_shutter():
-    '''
-    Open (1) or close (0) the shutter. Function returns the queried state of
-    the shutter right after being set.
-    '''
-    return int(requests.get('http://%s:7777/qverdi/shutter'%(VERDI_PI_IP)).content)
+        # Shutter button
+        self.toggle_btn = tk.Button(self.frame,
+                                    image=self.verdi_on,
+                                    command=self.toggle,
+                                    bd=0,
+                                    relief='flat')
+        self.shutter_state = self.get_shutter()
+        ## Query the current state of the shutter
+        if self.shutter_state == 1:
+            self.toggle_btn.configure(image=self.verdi_on)
+        else:
+            self.toggle_btn.configure(image=self.verdi_off)
+        self.toggle_btn.grid(row=5,
+                             column=1,
+                             pady=(5, 20))
 
-def verdi_set_power(power):
-    '''
-    Set the power of Verdi in W. Function returns the power queried on the
-    Verdi after being set.
-    '''
-    return float(requests.get('http://%s:7777/setverdi/power?power=%f'%(VERDI_PI_IP, power)).content)
+        # Pack it all up
+        self.frame.grid(padx=5,pady=(4,4))
+    def change_power(self,x):
+        self.verdi.set_power(0.001*float(self.entry_field.get()))
+        self.power_display.config(text='{0:.0f} mW'.format(1000*self.get_regpower()))
+        return None
+    def get_regpower(self):
+        return self.verdi.get_regpower()
+    def decreasepower(self):
+        current_power = float(self.get_regpower())
+        new_power = current_power - 0.001*float(self.increment_field.get())
+        self.verdi.set_power(new_power)
+        self.power_display.config(text='{0:.0f} mW'.format(1000*self.get_regpower()))
+        return None
+    def increasepower(self):
+        current_power = float(self.get_regpower())
+        new_power = current_power + 0.001*float(self.increment_field.get())
+        self.verdi.set_power(new_power)
+        self.power_display.config(text='{0:.0f} mW'.format(1000*self.get_regpower()))
+        return None
+    def get_shutter(self):
+        return self.verdi.get_shutter()
+    def toggle(self):
+        if self.shutter_state == 1:
+            self.verdi.set_shutter(0)
+            self.shutter_state = 0
+        else:
+            self.verdi.set_shutter(1)
+            self.shutter_state = 1
+        if self.shutter_state == 1:
+            self.toggle_btn.configure(image = self.verdi_on)
+        else:
+            self.toggle_btn.configure(image = self.verdi_off)
+    def run(self):
+        if self.verbose == True:
+            self.root.update()
+            print(self.root.winfo_width())
+            print(self.root.winfo_height())
+        self.root.mainloop()
 
-def verdi_get_calpower():
-    '''
-    Get the calibrated power in W.
-    '''
-    return float(requests.get('http://%s:7777/qverdi/calpower'%VERDI_PI_IP).content)
-
-def verdi_get_regpower():
-    '''
-    Get the regulated power in W.
-    '''
-    return float(requests.get('http://%s:7777/qverdi/regpower'%VERDI_PI_IP).content)
-
-def toggle():
-    if toggle_btn.config('text')[-1] == 'Shutter is open':
-        verdi_set_shutter(0)
-        toggle_btn.config(text="Shutter is closed")
-    else:
-        verdi_set_shutter(1)
-        toggle_btn.config(text="Shutter is open")
-    time.sleep(0.2)
-
-def change_power(x):
-    verdi_set_power(float(entry_field.get()))
-    power_display.config(text='{0:.4f} W'.format(verdi_get_regpower()))
-    return None
-
-def increasepower():
-    increment = increment_field.get()
-    verdi_set_power(verdi_get_regpower()+float(increment))
-    increment_field.config(text=increment)
-    time.sleep(0.2)
-    power_display.config(text='{0:.4f} W'.format(verdi_get_regpower()))
-    return None
-
-def decreasepower():
-    verdi_set_power(verdi_get_regpower()-float(increment_field.get()))
-    time.sleep(0.2)
-    power_display.config(text='{0:.4f} W'.format(verdi_get_regpower()))
-    return None
-
-def resetIP(x):
-    global VERDI_PI_IP
-    VERDI_PI_IP = ip_field.get()
-
-root = tk.Tk()
-
-root.title("Verdi")
-root.resizable(False, False)
-
-title = tk.Label(text='++++')
-title.grid(row=0,column=1)
-
-power_display = tk.Label(root,text='{0:.4f} W'.format(verdi_get_regpower()))
-power_display.grid(row=1,column=0,columnspan=3)
-
-entry_field_left = tk.Label(text='Set')
-entry_field_left.grid(row=2,column=0)
-
-entry_field = tk.Entry(root,justify='center')
-entry_field.bind('<Return>',change_power)
-entry_field.grid(row=2,column=1,columnspan=1)
-
-entry_field_right = tk.Label(text='W')
-entry_field_right.grid(row=2,column=2)
-
-left_increment_btn = tk.Button(root,text="↓", command =  decreasepower)
-left_increment_btn.grid(row=3,column=0)
-
-increment_field = tk.Entry(root,justify='center')
-increment_field.insert(0,'0.01')
-increment_field.grid(row=3,column=1)
-
-left_increment_btn = tk.Button(root,text="↑", command =  increasepower)
-left_increment_btn.grid(row=3,column=2)
-
-
-toggle_btn = tk.Button(root,text="", width=12, command=toggle)
-if verdi_get_shutter() == 1:
-    toggle_btn.config(text='Shutter is open')
-else:
-    toggle_btn.config(text='Shutter is closed')
-
-toggle_btn.grid(row=4,column=1)
-
-ip_field = tk.Entry(root,justify='center')
-ip_field.insert(0,VERDI_PI_IP)
-ip_field.bind('<Return>',resetIP)
-ip_field.grid(row=5,column=1)
-
-bottom = tk.Label(text='++++')
-bottom.grid(row=6,column=1)
-
-root.mainloop()
+if __name__ == '__main__':
+    verdiGUI = VerdiGUI()
+    verdiGUI.run()
