@@ -26,8 +26,10 @@ class VerdiGUI():
         # Background image
         if (sys.platform == 'win32'):
             self.top_image = tk.PhotoImage(file = 'verdi_background_win.gif')
-        else:
-            self.top_image = tk.PhotoImage(file = 'verdi_background.gif')
+        elif (self.platform == 'darwin'):
+            self.top_image = tk.PhotoImage(file = 'verdi_background_darwin.gif')
+        elif (self.platform == 'linux'):
+            self.top_image = tk.PhotoImage(file='verdi_background_linux.gif')
         self.top_label = tk.Label(self.frame,
                                   image=self.top_image,
                                   borderwidth=0,
