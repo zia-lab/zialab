@@ -145,7 +145,7 @@ class Monitor():
             if self.horizontal_marker:  # visual marker
                 self.line2.set_xdata([self.times[0], self.times[-1]])
                 self.line2.set_ydata([self.counts[-1], self.counts[-1]])
-            self.ax.set_title('%.3f' % (self.counts[-1]), color='cyan',
+            self.ax.set_title('%.1f%%' % (self.counts[-1]), color='cyan',
                               fontsize=200, pad=20)
             if self.y_min == 'auto' and self.y_max == 'auto':
                 if min(self.counts) == max(self.counts):
@@ -239,3 +239,6 @@ class Monitor():
 #        self.root.geometry("1000x200")
         self.root.resizable(False, False)
         self.root.mainloop()
+
+mon = Monitor(sampling_frequency=10)
+mon.run()

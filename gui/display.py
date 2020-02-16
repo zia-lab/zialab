@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*- 
 
 # A general-purpose display for showing the a time-varying value.
 
