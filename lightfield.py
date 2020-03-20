@@ -2,7 +2,6 @@
 import clr, ctypes
 # Import python sys module
 import sys, os
-import numpy as np
 # Import c compatible List and String
 from System import *
 from System.Collections.Generic import List
@@ -65,14 +64,14 @@ def convert_buffer(net_array, image_format):
     # Make a copy of the buffer
     return np.copy(resultArray)
 
-# exposures = np.linspace(0,200,21)
-# frames = []
-# sensor_size = (1024,1024)
-# for exposure in exposures:
-#     experiment.SetValue(CameraSettings.ShutterTimingExposureTime, int(exposure))
-#     experiment.SetValue(ExperimentSettings.AcquisitionFramesToStore, 1)
-#     dataset = experiment.Capture(1)
-#     image_data = dataset.GetFrame(0, 0).GetData()
-#     image_frame = dataset.GetFrame(0,0)
-#     frame = convert_buffer(dataset.GetFrame(0,0).GetData(), dataset.GetFrame(0,0).Format).reshape(sensor_size)
-#     frames.append(frame)
+exposures = np.linspace(0,200,21)
+frames = []
+sensor_size = (1024,1024)
+for exposure in exposures:
+    experiment.SetValue(CameraSettings.ShutterTimingExposureTime, int(exposure))
+    experiment.SetValue(ExperimentSettings.AcquisitionFramesToStore, 1)
+    dataset = experiment.Capture(1)
+    image_data = dataset.GetFrame(0, 0).GetData()
+    image_frame = dataset.GetFrame(0,0)
+    frame = convert_buffer(dataset.GetFrame(0,0).GetData(), dataset.GetFrame(0,0).Format).reshape(sensor_size)
+    frames.append(frame)
