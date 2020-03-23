@@ -52,8 +52,15 @@ import meep as mp
 import time
 import datetime
 import pickle
+from tabulate import tabulate
+from matplotlib import pyplot as plt
+from matplotlib.colors import LogNorm
+from matplotlib.colors import ListedColormap
 
 # setup directories
+
+home_folder = os.path.expanduser('~')
+s4dir = os.path.join(home_folder,'Google Drive/Zia Lab/CEM/S4')
 
 ##### log dirs #####
 if sys.platform == 'win32':
@@ -65,8 +72,6 @@ if sys.platform == 'darwin':
 datadir = logdir + 'Data/'
 graphdir = logdir + 'Graph/'
 ##### log dirs #####
-
-s4dir = '/Users/juan/Google Drive/Zia Lab/CEM/S4/'
 
 ###############################################################
 ################# Convenient Optics functions #################
@@ -86,9 +91,8 @@ def imaging_phase_profile(H, d, w, R, x, wavelength, n, eta, **kwargs):
     compute the phase required at a position x in the plane
     of the metasurface. 
     '''
-    return 2
-    return ((np.pi / wavelength) * n * (H - np.sqrt(x**2 + H**2)) -
-     (np.pi / wavelength) * (d - np.sqrt(eta**2 * x**2 + d**2)) / eta)
+    return ((2 * np.pi / wavelength) * n * (H - np.sqrt(x**2 + H**2)) -
+     (2 * np.pi / wavelength) * (d - np.sqrt(eta**2 * x**2 + d**2)) / eta)
 
 ################# Convenient Optics functions #################
 ###############################################################
@@ -104,7 +108,7 @@ def expand_sim_params(sim_params):
     sim_params['half_cell_width'] = sim_params['cell_width'] / 2.
     sim_params['half_post_width'] = sim_params['post_width'] / 2.
     sim_params['excitation_frequency'] = 1. / sim_params['wavelength']
-    sim_params['eta'] = sim_params['w']/sim_params['R'] - 1
+    
     return sim_params
 
 def post_phase(sim_params):
@@ -380,146 +384,376 @@ def function_topper(x,y):
 ###############################################################
 ######################## MEEP functions #######################
 
-def make_metalens_geometry(metalens_params):
+def make_metalens_geometry(metalens):
     '''
     Given metalens parameters, determine the required phases, and using
     these and the known width to phase relationship, determine the
     required widths for the posts.
     '''
     # first design the mask based on the given widths and corresponding phases
-    widths = metalens_params['widths']
-    phases = metalens_params['phases']
-    wavelength = metalens_params['wavelength']
-    good_widths = (widths >= metalens_params['min_width'])
+    widths = metalens['widths']
+    phases = metalens['phases']
+    wavelength = metalens['wavelength']
+    good_widths = (widths >= metalens['min_width'])
     widths = widths[good_widths]
     phases = phases[good_widths]
-    aperture = metalens_params['aperture']
-    f = metalens_params['f']
+    aperture = 2*metalens['R']
     # compute the required phases based on the wavelength, 
     # focal length and number of unit cells
     if (max(phases)-min(phases)) < 2*np.pi:
         print((max(phases)-min(phases)))
         return "not a full phase coverage"
     x, y = function_topper(widths, phases)
-    axis_positions = np.linspace((-metalens_params['unit cell size']*
-                              (metalens_params['num of unit cells']-1)/2),
-                              (metalens_params['unit cell size']*
-                              (metalens_params['num of unit cells']-1)/2),
-                              metalens_params['num of unit cells'])
-    required_phases = -2*np.pi/wavelength*(np.sqrt((axis_positions-metalens_params['axial_offset'])**2+f**2)-f)
+    axis_positions = np.linspace((-metalens['unit cell size']*
+                              (metalens['num of unit cells']-1)/2),
+                              (metalens['unit cell size']*
+                              (metalens['num of unit cells']-1)/2),
+                              metalens['num of unit cells'])
+    #required_phases = -2*np.pi/wavelength*(np.sqrt((axis_positions-metalens['axial_offset'])**2+f**2)-f)
+    required_phases = np.array([imaging_phase_profile(**metalens, x=xs) for xs in axis_positions])
     required_phases = required_phases - min(required_phases)
     required_phases = required_phases % (2*np.pi)
     required_widths = np.interp(required_phases, y, x)
     # create the posts
-    hairline = [mp.Block(size=mp.Vector3(w, metalens_params['post_height']),
-                    center = mp.Vector3(position,(-metalens_params['H']/2
-                                                  +metalens_params['sub_thickness']
-                                                  +metalens_params['post_height']/2)),
-                    material = mp.Medium(epsilon = metalens_params['epsilon'])) for w, position in zip(required_widths, axis_positions)]
+    hairline = [mp.Block(size=mp.Vector3(w, metalens['post_height']),
+                    center = mp.Vector3(position,(-metalens['sim_cell_height']/2
+                                                  +metalens['H']
+                                                  +metalens['gap']
+                                                  +metalens['pml_width']
+                                                  +metalens['post_height']/2)),
+                    material = mp.Medium(epsilon = metalens['epsilon'])) for w, position in zip(required_widths, axis_positions)]
     # create the substrate
-    substrate = [mp.Block(size = mp.Vector3(aperture,metalens_params['sub_thickness']),
-                        center = mp.Vector3(0,-metalens_params['H']/2+metalens_params['sub_thickness']/2),
-                        material = mp.Medium(epsilon = metalens_params['epsilon']))]
-    metalens_params['required_phases'] = required_phases
-    metalens_params['required_widths'] = required_widths
-    metalens_params['axis_positions'] = axis_positions
-    return metalens_params, substrate + hairline
+    substrate = [mp.Block(size = mp.Vector3(metalens['sim_cell_width'],
+                                            metalens['H']),
+                        center = mp.Vector3(0,
+                              (-metalens['sim_cell_height']/2
+                              +metalens['H']/2)
+                              +metalens['gap']
+                              +metalens['pml_width']),
+                        material = mp.Medium(epsilon = metalens['epsilon']))]
+    metalens['required_phases'] = required_phases
+    metalens['required_widths'] = required_widths
+    metalens['axis_positions'] = axis_positions
+    metalens['geometry'] = substrate + hairline
+    return metalens
 
-def aux_params(metalens_params):
-    '''
-    Compute a few additional parameters.
-    '''
-    metalens_params['num of unit cells'] = int(metalens_params['aperture'] / metalens_params['unit cell size'])
-    if metalens_params['num of unit cells'] % 2:
-        pass
-    else:
-        metalens_params['num of unit cells'] += -1
+def plot_phase_profile(metalens):
+    plt.figure(figsize=(10,3))
+    plt.plot(metalens['axis_positions'],metalens['required_widths'])
+    plt.plot(metalens['axis_positions'],metalens['required_widths'],'ko')
+    plt.show()
 
-    metalens_params['f'] = focal_length(metalens_params['NA'],metalens_params['aperture'])
-    metalens_params['fcen'] = 1/metalens_params['wavelength']
-    metalens_params['n'] = np.sqrt(metalens_params['epsilon'])
+def print_params(metalens):
+    print_out_lines = []
+    non_printable = [list, np.ndarray, dict]
+    for k in metalens:
+        thing = metalens[k]
+        thing_type = type(thing)
+        if thing_type in non_printable:
+            continue
+        if thing_type in [int, np.int64]:
+            thing_parsed = "%d" % thing
+        if thing_type == bool:
+            thing_parsed = "%s" % thing
+        if thing_type in [float, np.float64]:
+            thing_parsed = "%.2f" % thing
+        if thing_type == str:
+            thing_parsed = thing
+        print_out_lines.append([k, thing_parsed])
+    print(tabulate(print_out_lines))
 
-    metalens_params['H'] = metalens_params['sub_thickness'] + metalens_params['post_height'] + metalens_params['air_space'] # height of the simulation cell
-    metalens_params['top_of_posts_coordinate'] = (-metalens_params['H']/2
-                                        + metalens_params['sub_thickness']
-                                        + metalens_params['post_height'])
+def plot_em_energy_density(metalens):
+    plt.rcParams.update({'font.size': 32})
+    plt.figure(figsize=(20,18))
+    plt.imshow(metalens['e2']+0.001,extent=metalens['extent'],
+              cmap = metalens['cmap'],
+              origin='lower',
+              norm=LogNorm(vmin=0.001))
+    plt.xlabel('x/$\mu$m')
+    plt.ylabel('z/$\mu$m')
+    plt.plot([-metalens['w'],metalens['w']],
+            [metalens['d'],metalens['d']],
+            'w--')
+    plt.colorbar(label='$|E|^2$')
+    plt.tight_layout()
+    plt.show()
 
-    metalens_params['source_offset'] = (-metalens_params['H']/2
-                                        + metalens_params['sub_thickness']
-                                        - 3*metalens_params['wavelength'])
-    metalens_params['near2far_offset'] = (-metalens_params['H']/2
-                                          + metalens_params['sub_thickness']
-                                          + metalens_params['post_height']
-                                          + 3*metalens_params['wavelength'])
+def plot_simulation_cell(metalens):
+    fig, ax = plt.subplots(figsize=(10,10))
+    ax.plot([-metalens['sim_cell_width']/2, metalens['sim_cell_width']/2,
+              metalens['sim_cell_width']/2, -metalens['sim_cell_width']/2,
+              -metalens['sim_cell_width']/2],
+            [-metalens['sim_cell_height']/2, -metalens['sim_cell_height']/2,
+            metalens['sim_cell_height']/2, metalens['sim_cell_height']/2,
+            -metalens['sim_cell_height']/2],
+            label='border')
+    ax.plot([-metalens['sim_cell_width']/2+metalens['pml_width'],
+              metalens['sim_cell_width']/2-metalens['pml_width'],
+              metalens['sim_cell_width']/2-metalens['pml_width'],
+              -metalens['sim_cell_width']/2+metalens['pml_width'],
+              -metalens['sim_cell_width']/2+metalens['pml_width']],
+            [-metalens['sim_cell_height']/2+metalens['pml_width'],
+            -metalens['sim_cell_height']/2+metalens['pml_width'],
+            metalens['sim_cell_height']/2-metalens['pml_width'],
+            metalens['sim_cell_height']/2-metalens['pml_width'],
+            -metalens['sim_cell_height']/2+metalens['pml_width']],
+            label='pml')
+    ax.plot([0],[(-metalens['sim_cell_height']/2
+                +metalens['pml_width']
+                  +metalens['gap'])],
+            'o',ms=2)
+    ax.plot([-metalens['sim_cell_width']/2,
+            metalens['sim_cell_width']/2],
+            [(-metalens['sim_cell_height']/2
+                +metalens['pml_width']
+                  +metalens['gap']
+              +metalens['H'])]*2,
+            '--',ms=2)
+    ax.plot([-metalens['w'],
+            metalens['w']],
+            [(metalens['sim_cell_height']/2
+            -metalens['gap']
+            -metalens['pml_width'])]*2,
+            label='target')
+    ax.add_patch(plt.Rectangle((-metalens['R'],
+            (-metalens['sim_cell_height']/2
+                +metalens['pml_width']
+                  +metalens['gap']
+              +metalens['H'])),
+            2*metalens['R'],
+            metalens['post_height'],
+                                alpha=0.1))
+    ax.add_patch(plt.Rectangle((-metalens['R'],
+            (-metalens['sim_cell_height']/2
+                +metalens['pml_width']
+                  +metalens['gap']
+              +metalens['H'])),
+            2*metalens['R'],
+            metalens['post_height'],
+                  fc=(0,0,1,0.2)))
+    ax.add_patch(plt.Rectangle((-metalens['sim_cell_width']/2,
+            (-metalens['sim_cell_height']/2)),
+            metalens['sim_cell_width'],
+            metalens['H']+metalens['gap']+metalens['pml_width'],
+                  fc=(0,0,1,0.2),
+                  hatch='/'))
+    ax.set_aspect('equal')
+    plt.xlabel('x/$\mu$m')
+    plt.ylabel('y/$\mu$m')
+    plt.title('Simulation Cell')
+    plt.legend()
+    plt.show()
 
-    metalens_params['f#'] = metalens_params['f'] / metalens_params['aperture']
-    metalens_params['source width'] = 2. / metalens_params['fcen']
-    metalens_params['simulation time'] = (metalens_params['source width']
-                                          + metalens_params['n'] * metalens_params['sub_thickness'] / metalens_params['wavelength']
-                                          + (metalens_params['H'] - metalens_params['sub_thickness']) / metalens_params['wavelength'])
-    metalens_params['f#'] = metalens_params['aperture']/metalens_params['f']
-
-    return metalens_params
-
-def run_checks(metalens_params):
-    '''
-    Kind of outdated.
-    '''
-    for geometrical_feature in ['source_offset', 'near2far_offset']:
-        if metalens_params[geometrical_feature] > metalens_params['H']/2 - metalens_params['pml width']:
-            print(geometrical_feature," is out of bounds.")
-        if metalens_params[geometrical_feature] < -metalens_params['H']/2 + metalens_params['pml width']:
-            print(geometrical_feature," is out of bounds.")
-    else:
-        print("All checks passed.")
-
-def metalens(metalens_params):
-    '''
-    Run a single threaded Meep simulation for the given simulation
-    parameters.
-    '''
-    metalens_params = aux_params(metalens_params)
-    metalens_params, geometry = make_metalens_geometry(metalens_params)
+def simulate_metalens(metalens):
     # Setup the MEEP objects
-    cell = mp.Vector3(metalens_params['aperture'],
-                      metalens_params['H'])
+    cell = mp.Vector3(metalens['sim_cell_width'],
+              metalens['sim_cell_height'])
     # All around the simulation cell
-    pml_layers = [mp.PML(metalens_params['pml width'])]
+    pml_layers = [mp.PML(metalens['pml_width'])]
 
     # Let sources be continuous
-    sources = [mp.Source(src=mp.ContinuousSource(wavelength=metalens_params['wavelength'],
-                                                 width = metalens_params['source width']),
-                        component=mp.Ez,
-                        center=mp.Vector3(0,metalens_params['source_offset']),
-                        size=mp.Vector3(metalens_params['aperture'] - 2*metalens_params['pml width'],0))]
+    sources = [mp.Source(src=mp.ContinuousSource(wavelength=metalens['wavelength'],
+                            width = metalens['source_width']),
+              component=mp.Ez,
+              center=mp.Vector3(0,metalens['source_coordinate']),
+              size=mp.Vector3(0,0))]
 
     sim = mp.Simulation(cell_size=cell,
-                       boundary_layers=pml_layers,
-                       geometry=geometry,
-                       force_complex_fields = metalens_params['complex_fields'],
-                       sources=sources,
-                       resolution=metalens_params['resolution'])
+                boundary_layers=pml_layers,
+                geometry=metalens['geometry'],
+                force_complex_fields = metalens['complex_fields'],
+                sources=sources,
+                resolution=metalens['resolution'])
     start_time = time.time()
-    metalens_params['run_date'] = datetime.datetime.now().strftime("%b %d %Y at %H:%M:%S")
+    metalens['run_date'] = datetime.datetime.now().strftime("%b %d %Y at %H:%M:%S")
 
     sim.init_sim()
-    sim.run(until=1*metalens_params['simulation time'])
+    if metalens['save_output']:
+      sim.run(mp.to_appended("ez-{sim_id}".format(**metalens),
+                  mp.at_every(metalens['simulation time']/1000.,
+                      mp.output_efield_z)),
+            until=1*metalens['simulation time'])
+    else:
+      sim.run(until=1*metalens['simulation time']) 
 
     eps = sim.get_array(component=mp.Dielectric).transpose()
     ez = sim.get_array(component=mp.Ez).transpose()
 
-    metalens_params['run_time_in_s'] = time.time() - start_time
-    metalens_params['fields'] = {'Ez': ez}
-    pickle.dump(metalens_params, open('%smetalens-%s.pkl' % (datadir, metalens_params['sim_id']),'wb'))
-    return metalens_params
+    metalens['run_time_in_s'] = time.time() - start_time
+    metalens['fields'] = {'Ez': ez}
+    pickle.dump(metalens, open('%smetalens-%s.pkl' % (datadir, metalens['sim_id']),'wb'))
+    return metalens
 
-def para_metalens(metalens_params, num_cores):
+def compute_post_simulation_params(metalens):
+    metalens['extent'] = [-metalens['sim_cell_width']/2,metalens['sim_cell_width']/2,
+              -metalens['sim_cell_height']/2,metalens['sim_cell_height']/2]
+    metalens['e2'] = 1/2* np.abs(metalens['fields']['Ez'])**2
+    metalens['optical_axis'] = np.linspace(-metalens['sim_cell_height']/2,
+                       metalens['sim_cell_height']/2,
+                       metalens['fields']['Ez'].shape[0])
+    metalens['transverse_axis'] = np.linspace(-metalens['sim_cell_width']/2,
+                       metalens['sim_cell_width']/2,
+                       metalens['fields']['Ez'].shape[1])
+    metalens['detector_plane_index'] = np.argmin(np.abs(metalens['optical_axis']
+                                                -metalens['d']))
+    metalens['optical_axis_index'] = np.argmin(np.abs(metalens['transverse_axis']))
+    metalens['top_of_post_index'] = np.argmin(np.abs(metalens['optical_axis']
+                                        -metalens['top_of_posts_coordinate']))
+    metalens['max_axial_field_in_image_space'] = np.argsort(-metalens['e2'][:,metalens['optical_axis_index']])
+    metalens['max_axial_field_in_image_space'] = (metalens['max_axial_field_in_image_space'][metalens['max_axial_field_in_image_space']>metalens['top_of_post_index']])[0]
+    return metalens
+
+def wavelength_to_rgb(wavelength, gamma=0.8):
+    '''This converts a given wavelength of light to an 
+    approximate RGB color value. The wavelength must be given
+    in nanometers in the range from 380 nm through 750 nm
+    (789 THz through 400 THz).
+
+    Based on code by Dan Bruton
+    http://www.physics.sfasu.edu/astro/color/spectra.html
+    
+    REF: https://www.noah.org/wiki/Wavelength_to_RGB_in_Python
+    '''
+
+    wavelength = float(wavelength)
+    if wavelength >= 380 and wavelength <= 440:
+      attenuation = 0.3 + 0.7 * (wavelength - 380) / (440 - 380)
+      R = ((-(wavelength - 440) / (440 - 380)) * attenuation) ** gamma
+      G = 0.0
+      B = (1.0 * attenuation) ** gamma
+    elif wavelength >= 440 and wavelength <= 490:
+      R = 0.0
+      G = ((wavelength - 440) / (490 - 440)) ** gamma
+      B = 1.0
+    elif wavelength >= 490 and wavelength <= 510:
+      R = 0.0
+      G = 1.0
+      B = (-(wavelength - 510) / (510 - 490)) ** gamma
+    elif wavelength >= 510 and wavelength <= 580:
+      R = ((wavelength - 510) / (580 - 510)) ** gamma
+      G = 1.0
+      B = 0.0
+    elif wavelength >= 580 and wavelength <= 645:
+      R = 1.0
+      G = (-(wavelength - 645) / (645 - 580)) ** gamma
+      B = 0.0
+    elif wavelength >= 645 and wavelength <= 750:
+      attenuation = 0.3 + 0.7 * (750 - wavelength) / (750 - 645)
+      R = (1.0 * attenuation) ** gamma
+      G = 0.0
+      B = 0.0
+    else:
+      R = 1.0
+      G = 1.0
+      B = 1.0
+    return (R, G, B)
+
+def aux_params(metalens):
+    '''
+    Compute a few additional parameters.
+    '''
+    metalens['aperture'] = 2*metalens['R']
+    metalens['num of unit cells'] = int(metalens['aperture'] / metalens['unit cell size'])
+    if metalens['num of unit cells'] % 2:
+        pass
+    else:
+        metalens['num of unit cells'] += -1
+
+    metalens['fcen'] = 1/metalens['wavelength']
+    metalens['n'] = np.sqrt(metalens['epsilon'])
+    metalens['wavelength_rgb'] = wavelength_to_rgb(metalens['wavelength']*1000)
+    metalens['cmap'] = ListedColormap(np.array([[i/255*metalens['wavelength_rgb'][0],i/255*metalens['wavelength_rgb'][1],i/255*metalens['wavelength_rgb'][2],1] for i in range(256)]))
+
+    metalens['sim_cell_width'] = (2*max(metalens['R'],metalens['w']) + 
+                  2*metalens['pml_width']+2*metalens['gap']) # height of the simulation cell
+    if metalens['w'] >= metalens['R']:
+        metalens['sim_cell_width']+= 2*metalens['gap']
+    
+    metalens['sim_cell_height'] = (metalens['H']+
+         metalens['d'] + 2*metalens['pml_width'] +
+         2*metalens['gap'])
+    
+    metalens['top_of_posts_coordinate'] = (-metalens['sim_cell_height']/2
+                                        + metalens['H']
+                                        + metalens['gap']
+                                        + metalens['pml_width']
+                                        + metalens['post_height'])
+    metalens['source_coordinate'] = -metalens['H']
+    
+    metalens['eta'] = metalens['w']/metalens['R'] - 1
+
+    metalens['near2far_offset'] = (-metalens['sim_cell_height']/2
+                                          + metalens['H']
+                                          + metalens['post_height']
+                                          + 3*metalens['wavelength'])
+
+#    metalens['f#'] = metalens['f'] / metalens['aperture']
+    metalens['source_width'] = 2. / metalens['fcen']
+    metalens['simulation time'] = (metalens['source_width']
+                                          + metalens['n'] * np.sqrt(metalens['H']**2 + metalens['R']**2) / metalens['wavelength']
+                                          + (np.sqrt(metalens['d']**2+metalens['R']**2)) / metalens['wavelength'])
+
+    return metalens
+
+def run_checks(metalens):
+    '''
+    Kind of outdated.
+    '''
+    for geometrical_feature in ['source_offset', 'near2far_offset']:
+        if metalens[geometrical_feature] > metalens['H']/2 - metalens['pml_width']:
+            print(geometrical_feature," is out of bounds.")
+        if metalens[geometrical_feature] < -metalens['H']/2 + metalens['pml_width']:
+            print(geometrical_feature," is out of bounds.")
+    else:
+        print("All checks passed.")
+
+#def metalens_old(metalens):
+#    '''
+#    Run a single threaded Meep simulation for the given simulation
+#    parameters.
+#    '''
+#    metalens = aux_params(metalens)
+#    metalens, geometry = make_metalens_geometry(metalens)
+#    # Setup the MEEP objects
+#    cell = mp.Vector3(metalens['aperture'],
+#                      metalens['H'])
+#    # All around the simulation cell
+#    pml_layers = [mp.PML(metalens['pml_width'])]
+#
+#    # Let sources be continuous
+#    sources = [mp.Source(src=mp.ContinuousSource(wavelength=metalens['wavelength'],
+#                                                 width = metalens['source_width']),
+#                        component=mp.Ez,
+#                        center=mp.Vector3(0,metalens['source_offset']),
+#                        size=mp.Vector3(metalens['aperture'] - 2*metalens['pml_width'],0))]
+#
+#    sim = mp.Simulation(cell_size=cell,
+#                       boundary_layers=pml_layers,
+#                       geometry=geometry,
+#                       force_complex_fields = metalens['complex_fields'],
+#                       sources=sources,
+#                       resolution=metalens['resolution'])
+#    start_time = time.time()
+#    metalens['run_date'] = datetime.datetime.now().strftime("%b %d %Y at %H:%M:%S")
+#
+#    sim.init_sim()
+#    sim.run(until=1*metalens['simulation time'])
+#
+#    eps = sim.get_array(component=mp.Dielectric).transpose()
+#    ez = sim.get_array(component=mp.Ez).transpose()
+#
+#    metalens['run_time_in_s'] = time.time() - start_time
+#    metalens['fields'] = {'Ez': ez}
+#    pickle.dump(metalens, open('%smetalens-%s.pkl' % (datadir, metalens['sim_id']),'wb'))
+#    return metalens
+
+def para_metalens(metalens, num_cores):
     '''
     Run script in the parallel environment for MEEP.
     '''
     print("See progress in terminal.")
     # save the params to disk
-    pickle.dump(metalens_params, open('metalens_params_temp.pkl','wb'))
+    pickle.dump(metalens, open('metalens_temp.pkl','wb'))
     # compose the script to be run
     script = '''
 main_dir = '/Users/juan/Google Drive/Zia Lab/CEM/MEEP'
@@ -538,10 +772,10 @@ sys.path.append(os.getcwd())
 from metalens import *
 import datetime
 
-metalens_params = pickle.load(open('metalens_params_temp.pkl','rb'))
-metalens_params = aux_params(metalens_params)
-metalens_params = metalens(metalens_params)
-pickle.dump(metalens_params, open(os.path.join(main_dir,'out.pkl'), 'wb'))
+metalens = pickle.load(open('metalens_temp.pkl','rb'))
+metalens = aux_params(metalens)
+metalens = metalens(metalens)
+pickle.dump(metalens, open(os.path.join(main_dir,'out.pkl'), 'wb'))
 print('done')
     '''
     script_fname = 'pmeep-hack-%s.py' % str(uuid.uuid4())
@@ -553,7 +787,7 @@ print('done')
     print(command_sequence)
     os.system(command_sequence)
     out = pickle.load(open('out.pkl','rb'))
-    os.system('mv out.pkl metalens-%s.pkl' % metalens_params['sim_id'])
+    os.system('mv out.pkl metalens-%s.pkl' % metalens['sim_id'])
     return out
 
 ######################## MEEP functions #######################
