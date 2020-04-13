@@ -318,7 +318,7 @@ def aux_params(metalens):
     metalens['ws'] = metalens['R']
     metalens['fcen'] = 1./metalens['wavelength']
     metalens['n'] = np.sqrt(metalens['epsilon'])
-    metalens['normal_incidence_transmission'] = 0.5*(1-((1-metalens['n'])/(1+metalens['n']))**2)
+    metalens['normal_incidence_transmission'] = (1-((1-metalens['n'])/(1+metalens['n']))**2)
     metalens['TIR_onset_coordinate'] = (np.tan(np.arcsin(1/metalens['n']))
                                         * metalens['H'])
     metalens['wavelength_rgb'] = wave_to_rgb(metalens['wavelength'])
@@ -414,7 +414,7 @@ def make_metalens_geometry(metalens):
     required_phases = required_phases % (2*np.pi)
     required_widths = np.interp(required_phases, y, x)
     # create the posts
-    hairline = [mp.Block(size=mp.Vector3(w, metalens['post_height']),
+    the_posts = [mp.Block(size=mp.Vector3(w, metalens['post_height']),
                   center = mp.Vector3(position,
                                       (metalens['interface_coordinate']
                                        + metalens['post_height']/2)
@@ -438,7 +438,7 @@ def make_metalens_geometry(metalens):
     metalens['required_phases'] = required_phases
     metalens['required_widths'] = required_widths
     metalens['axis_positions'] = axis_positions
-    metalens['geometry'] = substrate + hairline
+    metalens['geometry'] = substrate + the_posts
     metalens['flux_geometry'] = flux_substrate
     # compute the contour of the metalens
     track = [[-metalens['R'], metalens['interface_coordinate']]]
@@ -710,8 +710,8 @@ def get_flux_on_metalens(metalens):
     sim.run(until=metalens['simulation_time']) 
 
     fields = {'Ez': sim.get_array(component=mp.Ez).transpose(),
-                          'Hx': sim.get_array(component=mp.Hx).transpose(),
-                          'Hy': sim.get_array(component=mp.Hy).transpose()}
+              'Hx': sim.get_array(component=mp.Hx).transpose(),
+              'Hy': sim.get_array(component=mp.Hy).transpose()}
     transverse_axis = (
       np.linspace(-metalens['sim_cell_width']/2,
       metalens['sim_cell_width']/2,
@@ -759,7 +759,7 @@ def para_metalens(metalens, num_cores):
 
           metalens = pickle.load(open('metalens_temp.pkl','rb'))
           metalens = simulate_metalens(metalens)
-          metalens = compute_post_simulation_params(metalens)
+          # metalens = compute_post_simulation_params(metalens)
           pickle.dump(metalens, open(os.path.join(main_dir,'out.pkl'), 'wb'))
           print('done')
   '''
@@ -799,10 +799,11 @@ def compute_post_simulation_params(metalens, verbose=True):
     # far-field propagation
     metalens['nearfield_index'] = np.argmin(np.abs(metalens['optical_axis']
                                     - metalens['nearfield_coordinate']))
-    metalens['lr_copies'] = round((metalens['freq_multiplier']-1)/2)
+    metalens['lr_copies'] = int(round((metalens['freq_multiplier']-1)/2))
 
     metalens['farfields'] = {}
     metalens['nearfields'] = {}
+    propagator = None
     for field in metalens['fields']:
         if verbose:
             print("Computing the farfield for %s..." % field)
@@ -817,14 +818,17 @@ def compute_post_simulation_params(metalens, verbose=True):
         metalens['optical_axis_for_farfield'] = np.linspace(
                     metalens['nearfield_coordinate'],
                     metalens['detector_plane_coordinate'] + metalens['top_plus'],
-                    round((metalens['detector_plane_coordinate'] + metalens['top_plus']
+                    int(round((metalens['detector_plane_coordinate'] + metalens['top_plus']
                     - metalens['nearfield_coordinate'])
-                    * metalens['resolution'])) - metalens['nearfield_coordinate']
+                    * metalens['resolution']))) - metalens['nearfield_coordinate']
         metalens['optical_axis_for_farfield'] = (metalens['optical_axis_for_farfield'].reshape((len(metalens['optical_axis_for_farfield']),1)))
-        metalens['field_ft'] = (metalens['nearfield_fft'] * np.exp(1j*metalens['ky'] * metalens['optical_axis_for_farfield']))
+        if propagator is None:
+            propagator = np.exp(1j*metalens['ky'] * metalens['optical_axis_for_farfield'])
+        metalens['field_ft'] = (metalens['nearfield_fft'] * propagator)
         metalens['farfields'][field] = (np.fft.ifft(metalens['field_ft']))
         del metalens['field_ft']
         del metalens['nearfield_fft']
+    del propagator
     metalens['fields']['rho_em'] = 0.5*np.abs(metalens['fields']['Ez'])**2 # not fully correct
     metalens['farfields']['rho_em'] = 0.5*np.abs(metalens['farfields']['Ez'])**2 # not fully correct
     for field in metalens['farfields']:
@@ -837,9 +841,9 @@ def compute_post_simulation_params(metalens, verbose=True):
           (paddedfield,
           metalens['farfields'][field]))
     
-    metalens['farfields']['Sx'] = np.real(-0.5 * np.conjugate(metalens['farfields']['Ez'])
+    metalens['farfields']['Sx'] = np.real(-np.conjugate(metalens['farfields']['Ez'])
                             * metalens['farfields']['Hy'])
-    metalens['farfields']['Sy'] = np.real(0.5 * np.conjugate(metalens['farfields']['Ez'])
+    metalens['farfields']['Sy'] = np.real(np.conjugate(metalens['farfields']['Ez'])
                           * metalens['farfields']['Hx'])
     metalens['full_extent'][0] = (-metalens['sim_cell_width']
                                  * metalens['freq_multiplier']/2)
@@ -858,7 +862,7 @@ def compute_post_simulation_params(metalens, verbose=True):
                                         metalens['detector_plane_coordinate']))
     metalens['flux_through_target'] = np.sum(
       metalens['farfields']['Sy'][metalens['detector_plane_index']][np.abs(metalens['transverse_axis_extended']) <=
-              metalens['ws']])
+              metalens['w']])
     metalens['full_flux'] = metalens['incident_flux']*np.pi/metalens['beta']
     if 'incident_flux' in metalens.keys():
         metalens['tf/if'] = (metalens['flux_through_target']
