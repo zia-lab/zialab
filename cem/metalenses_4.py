@@ -10,8 +10,8 @@
 #   │************@&&&&&@│         Metalenses with         │@&&&@************│
 #   │***********@&&&&&&&│           S4 and MEEP           │#@&&@@***********│
 #   │***********&&&@&&&&│   --- Juan David Lizarazo ---   │#@@@&@***********│
-#   │***********@&&@&&&&│           Mar 31 2020           │#@&&&&***********│
-#   │***********@&&@&&&&│            version 3            │(&&&&@***********│
+#   │***********@&&@&&&&│           Apr 13 2020           │#@&&&&***********│
+#   │***********@&&@&&&&│            version 4            │(&&&&@***********│
 #   │************@&@&&&&└─────────────────────────────────┘&&&@@************│
 #   │***********&&&&&@&&&&&&&&%&&&&&&&&&&%%##%##%#%####%(#%#%&&&@***********│
 #   │***********@&@&&@&@&&&&&&&&&&&&&&&%#%##%#%%%%##%%#%##%#%&&&&***********│
@@ -42,15 +42,6 @@
 #             │        running FDTD simulations with MEEP.        │          
 #             └───────────────────────────────────────────────────┘          
 
-# This variant is used to simulate 2D metalenses with a significantly
-# reduced simulation volume given that here an extended source is used
-# closer to the metalens that emulates the emission from a point source.
-# In addition to the previous version, now the simulation volume is also
-# reduced by querying the field right after the metalens and propagating
-# this to the far-field.
-# It also offers a tool to run a given metalens using several CPU cores
-# in parallel.
-
 import numpy as np
 import os
 import subprocess
@@ -74,6 +65,7 @@ home_folder = os.path.expanduser('~')
 s4dir = os.path.join(home_folder,'Google Drive/Zia Lab/CEM/S4')
 
 ##### log dirs #####
+logdir = ''
 if sys.platform == 'win32':
     sys.path.insert(0,'%s:/Google Drive/Zia Lab/Python/' % drive_letter)
     logdir='%s:/Google Drive/Zia Lab/Log/' % drive_letter
@@ -82,6 +74,10 @@ if sys.platform == 'darwin':
     logdir='/Users/juan/Google Drive/Zia Lab/Log/'
 datadir = logdir + 'Data/'
 graphdir = logdir + 'Graph/'
+
+## TEMP
+datadir = '/Users/juan/Temp/Data/'
+
 ##### log dirs #####
 
 ###############################################################
@@ -309,20 +305,20 @@ def aux_params(metalens):
     if metalens['w'] == metalens['R']:
       metalens['w'] = metalens['w'] + 1e-3
     metalens['aperture'] = 2*metalens['R']
-    metalens['num of unit cells'] = int(metalens['aperture'] 
-                                       / metalens['unit cell size'])
-    if metalens['num of unit cells'] % 2:
+    metalens['num_of_unit_cells'] = int(metalens['aperture'] 
+                                       / metalens['unit_cell_size'])
+    if metalens['num_of_unit_cells'] % 2:
         pass
     else:
-        metalens['num of unit cells'] += -1
+        metalens['num_of_unit_cells'] += -1
     metalens['ws'] = metalens['R']
     metalens['fcen'] = 1./metalens['wavelength']
     metalens['n'] = np.sqrt(metalens['epsilon'])
     metalens['normal_incidence_transmission'] = (1-((1-metalens['n'])/(1+metalens['n']))**2)
-    metalens['TIR_onset_coordinate'] = (np.tan(np.arcsin(1/metalens['n']))
+    metalens['TIR_onset_coord'] = (np.tan(np.arcsin(1/metalens['n']))
                                         * metalens['H'])
     metalens['wavelength_rgb'] = wave_to_rgb(metalens['wavelength'])
-    metalens['beta'] = 2*np.arctan(metalens['R']/metalens['H'])
+    metalens['chi'] = np.arctan(metalens['R']/metalens['H'])
     metalens['k'] = metalens['n']*2.*np.pi/metalens['wavelength'] # inside dia
     metalens['cmap'] = ListedColormap(np.array([
                 [i/255*metalens['wavelength_rgb'][0],
@@ -348,15 +344,15 @@ def aux_params(metalens):
          + metalens['b'] + 2 * metalens['gap_v'])
     
     # determine locations of different features
-    metalens['source_coordinate'] = (-metalens['sim_cell_height']/2.
+    metalens['source_coord'] = (-metalens['sim_cell_height']/2.
                     + metalens['pml_width'] + metalens['gap_v'])
-    metalens['interface_coordinate'] = (-metalens['sim_cell_height']/2.
+    metalens['interface_coord'] = (-metalens['sim_cell_height']/2.
                                         + metalens['pml_width']
                                         + metalens['s']
                                         + metalens['gap_v'])
-    metalens['top_of_posts_coordinate'] = (metalens['interface_coordinate']
+    metalens['top_of_posts_coord'] = (metalens['interface_coord']
                                           + metalens['post_height'])
-    metalens['detector_plane_coordinate'] = (metalens['interface_coordinate']
+    metalens['detector_plane_coord'] = (metalens['interface_coord']
                                              + metalens['d'])
     
     metalens['simulation_time'] = (metalens['source_width']
@@ -374,9 +370,9 @@ def aux_params(metalens):
     metalens['full_extent'] = [-metalens['sim_cell_width']/2,
                           metalens['sim_cell_width']/2,
                           -metalens['sim_cell_height']/2,
-                          (metalens['detector_plane_coordinate']
+                          (metalens['detector_plane_coord']
                           + metalens['top_plus'])]
-    metalens['nearfield_coordinate'] = (metalens['interface_coordinate']
+    metalens['nearfield_coord'] = (metalens['interface_coord']
                                         + metalens['post_height']
                                         + metalens['b'])
     return metalens
@@ -403,11 +399,11 @@ def make_metalens_geometry(metalens):
         print("not a full phase coverage")
         return "not a full phase coverage"
     x, y = function_topper(widths, phases)
-    axis_positions = np.linspace((-metalens['unit cell size']*
-                              (metalens['num of unit cells']-1)/2),
-                              (metalens['unit cell size']*
-                              (metalens['num of unit cells']-1)/2),
-                              metalens['num of unit cells'])
+    axis_positions = np.linspace((-metalens['unit_cell_size']*
+                              (metalens['num_of_unit_cells']-1)/2),
+                              (metalens['unit_cell_size']*
+                              (metalens['num_of_unit_cells']-1)/2),
+                              metalens['num_of_unit_cells'])
     required_phases = np.array([imaging_phase_profile(**metalens, x=xs) 
                                 for xs in axis_positions])
     required_phases = required_phases - min(required_phases)
@@ -416,7 +412,7 @@ def make_metalens_geometry(metalens):
     # create the posts
     the_posts = [mp.Block(size=mp.Vector3(w, metalens['post_height']),
                   center = mp.Vector3(position,
-                                      (metalens['interface_coordinate']
+                                      (metalens['interface_coord']
                                        + metalens['post_height']/2)
                                      ),
                   material = mp.Medium(epsilon = metalens['epsilon'])) 
@@ -441,18 +437,18 @@ def make_metalens_geometry(metalens):
     metalens['geometry'] = substrate + the_posts
     metalens['flux_geometry'] = flux_substrate
     # compute the contour of the metalens
-    track = [[-metalens['R'], metalens['interface_coordinate']]]
+    track = [[-metalens['R'], metalens['interface_coord']]]
     post_h = metalens['post_height']
     for ax_position, pwidth in zip(metalens['axis_positions'],
                                   metalens['required_widths']):
         this_post = [
-          [ax_position-pwidth/2, metalens['interface_coordinate']],
-          [ax_position-pwidth/2, metalens['interface_coordinate'] + post_h],
-          [ax_position+pwidth/2, metalens['interface_coordinate'] + post_h],
-          [ax_position+pwidth/2, metalens['interface_coordinate']]
+          [ax_position-pwidth/2, metalens['interface_coord']],
+          [ax_position-pwidth/2, metalens['interface_coord'] + post_h],
+          [ax_position+pwidth/2, metalens['interface_coord'] + post_h],
+          [ax_position+pwidth/2, metalens['interface_coord']]
                     ]
         track.extend(this_post)
-    track.append([metalens['R'], metalens['interface_coordinate']])
+    track.append([metalens['R'], metalens['interface_coord']])
     track = np.array(track)
     metalens['contour'] = track
     return metalens
@@ -487,57 +483,60 @@ def print_params(metalens):
         print_out_lines.append([k, thing_parsed])
     print(tabulate(print_out_lines))
 
-#def far_ez_source_amp_func(metalens):
-#    '''
-#    returns the required amplitude
-#    function necessary to simulate
-#    an isotropic point source
-#    '''
-#    def far_ez(mpvec):
-#        '''
-#        remember that the vectors
-#        that MEEP will provide here
-#        are relative to the center of the source
-#        '''
-#        r = np.sqrt(mpvec.x**2 + (metalens['H'] - metalens['s'])**2)
-#        ph = np.exp(1j * metalens['k'] * r)
-#        am = 1./(r)**1.5
-#        return am * ph
-#    return far_ez
+def in_plane_dip_amp_func_Ex(metalens):
+  '''
+  returns the required amplitude function necessary to the z
+  component of the electric current necessary to produce the fields
+  of an in-plane dipole at an angle beta with respect to the
+  x-axis
+  '''
+  def far_JEx(mpvec):
+    '''
+    remember that the vectors
+    that MEEP will provide here
+    are relative to the center of the source
+    '''
+    x = mpvec.x
+    H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+    bet = metalens['beta']
+    return k*n*(H*np.cos(bet) - x*np.sin(bet))*(2*k*np.sqrt(H**2 + x**2) - 1j)*np.exp(1j*k*np.sqrt(H**2 + x**2))/(2*(k*np.sqrt(H**2 + x**2))**(5/2))
+  return far_JEx
+def in_plane_dip_amp_func_Hz(metalens):
+  '''
+  returns the required amplitude function necessary to the z
+  component of the magnetic current necessary to produce the fields
+  of an in-plane dipole at an angle beta with respect to the
+  x-axis
+  '''
+  def far_JHz(mpvec):
+    '''
+    remember that the vectors
+    that MEEP will provide here
+    are relative to the center of the source
+    '''
+    x = mpvec.x
+    H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+    bet = metalens['beta']
+    return -H*(H*np.cos(bet) - x*np.sin(bet))*np.exp(1j*k*np.sqrt(H**2 + x**2))/(np.sqrt(k*np.sqrt(H**2 + x**2))*(H**2 + x**2))
+  return far_JHz
 
-def out_of_plane_dip_amp_func_Ez(metalens):
+def far_ez_source_amp_func(metalens):
     '''
     returns the required amplitude
     function necessary to simulate
     an isotropic point source
     '''
-    def far_JEz(mpvec):
+    def far_ez(mpvec):
         '''
         remember that the vectors
         that MEEP will provide here
         are relative to the center of the source
         '''
-        x = mpvec.x
-        H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
-        return -H*k*n*(2*k*np.sqrt(H**2 + x**2) + 1j)*np.exp(1j*k*np.sqrt(H**2 + x**2))/(2*(k*np.sqrt(H**2 + x**2))**(5/2))
-    return far_JEz
-
-def out_of_plane_dip_amp_func_Hx(metalens):
-    '''
-    returns the required amplitude
-    function necessary to simulate
-    an isotropic point source
-    '''
-    def far_JEz(mpvec):
-        '''
-        remember that the vectors
-        that MEEP will provide here
-        are relative to the center of the source
-        '''
-        x = mpvec.x
-        H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
-        return -np.exp(1j*k*np.sqrt(H**2 + x**2))/np.sqrt(k*np.sqrt(H**2 + x**2))
-    return far_JEz
+        r = np.sqrt(mpvec.x**2 + (metalens['H'] - metalens['s'])**2)
+        ph = np.exp(1j * metalens['k'] * r)
+        am = 1./(r)**1.5
+        return am * ph
+    return far_ez
 
 def plot_em_energy_density(metalens, normFunc = Normalize, saver=False):
     vmin = np.percentile(metalens['rho_em'].flatten(),10)
@@ -578,7 +577,7 @@ def plot_density(metalens, quantity, extra='',
     ax.set_xlabel('x/$\mu$m')
     ax.set_ylabel('y/$\mu$m')
     ax.plot([-metalens['w'],metalens['w']],
-            [(metalens['detector_plane_coordinate'])]*2,
+            [(metalens['detector_plane_coord'])]*2,
             'wo')
     fig.colorbar(ims, ax=ax, label=pretty_labels[quantity])
     plt.tight_layout()
@@ -632,11 +631,11 @@ def plot_simulation_cell(metalens):
     # source
     ax.plot([-metalens['R'],
     metalens['R']],
-    [metalens['source_coordinate']]*2,
+    [metalens['source_coord']]*2,
     '--',ms=2, label='source')
     # metalens box
     ax.add_patch(plt.Rectangle((-metalens['R'],
-            (metalens['interface_coordinate'])),
+            (metalens['interface_coord'])),
             2*metalens['R'],
             metalens['post_height'],
             alpha=0.1))
@@ -661,25 +660,25 @@ def simulate_metalens(metalens):
     pml_layers = [ mp.PML(metalens['pml_width']) ]
     # Set up the sources
     sources = [mp.Source(src=mp.ContinuousSource(
-                         wavelength=metalens['wavelength'],
-                         width=metalens['source_width']
+                          wavelength=metalens['wavelength'],
+                          width=metalens['source_width']
                         ),
-              component=mp.Ez,
-              center=mp.Vector3(0, metalens['source_coordinate']),
-              size=mp.Vector3(2 * metalens['ws'], 0),
-              amp_func=out_of_plane_dip_amp_func_Ez(metalens)),
-              mp.Source(src=mp.ContinuousSource(
-                        wavelength=metalens['wavelength'],
-                        width=metalens['source_width']
-                      ),
-              component=mp.Hx,
-              center=mp.Vector3(0, metalens['source_coordinate']),
-              size=mp.Vector3(2 * metalens['ws'], 0),
-              amp_func=out_of_plane_dip_amp_func_Hx(metalens))
+                  component=mp.Ex,
+                  amp_func=in_plane_dip_amp_func_Ex(metalens),
+                  center=mp.Vector3(0, metalens['source_coord']),
+                  size=mp.Vector3(2 * metalens['ws'], 0)),
+                mp.Source(src=mp.ContinuousSource(
+                          wavelength=metalens['wavelength'],
+                          width=metalens['source_width']
+                        ),
+                  component=mp.Hz,
+                  amp_func=in_plane_dip_amp_func_Hz(metalens),
+                  center=mp.Vector3(0,  metalens['source_coord']),
+                  size=mp.Vector3(2 * metalens['ws'], 0))
               ]
     # Set up the symmetries
     syms = []
-    if metalens['x_mirror_symmetry']:
+    if metalens['x_mirror_symmetry'] and (metalens['beta'] == 0 or metalens['beta'] == np.pi/2):
         syms.append(mp.Mirror(mp.X))
     sim = mp.Simulation(cell_size=cell,
                 boundary_layers=pml_layers,
@@ -708,9 +707,9 @@ def simulate_metalens(metalens):
     # Compute the clock run time and grab the fields
     metalens['array_metadata'] = sim.get_array_metadata()
     metalens['run_time_in_s'] = time.time() - start_time
-    metalens['fields'] = {'Ez': sim.get_array(component=mp.Ez).transpose(),
-                          'Hx': sim.get_array(component=mp.Hx).transpose(),
-                          'Hy': sim.get_array(component=mp.Hy).transpose()
+    metalens['fields'] = {'Ex': sim.get_array(component=mp.Ex).transpose(),
+                          'Ey': sim.get_array(component=mp.Ex).transpose(),
+                          'Hz': sim.get_array(component=mp.Hz).transpose()
                           }
     metalens['eps'] = sim.get_epsilon().transpose()
     # Dump the result to disk
@@ -729,23 +728,31 @@ def get_flux_on_metalens(metalens):
     # All around the simulation cell
     pml_layers = [ mp.PML(metalens['pml_width']) ]
     # Set up the sources
+#    sources = [mp.Source(src=mp.ContinuousSource(
+#                         wavelength=metalens['wavelength'],
+#                         width=metalens['source_width']
+#                        ),
+#              component=mp.Ez,
+#              center=mp.Vector3(0, metalens['source_coord']),
+#              size=mp.Vector3(2 * metalens['ws'], 0),
+#              amp_func=far_ez_source_amp_func(metalens))]
     sources = [mp.Source(src=mp.ContinuousSource(
-                     wavelength=metalens['wavelength'],
-                     width=metalens['source_width']
-                    ),
-          component=mp.Ez,
-          center=mp.Vector3(0, metalens['source_coordinate']),
-          size=mp.Vector3(2 * metalens['ws'], 0),
-          amp_func=out_of_plane_dip_amp_func_Ez(metalens)),
-          mp.Source(src=mp.ContinuousSource(
-                    wavelength=metalens['wavelength'],
-                    width=metalens['source_width']
-                  ),
-          component=mp.Hx,
-          center=mp.Vector3(0, metalens['source_coordinate']),
-          size=mp.Vector3(2 * metalens['ws'], 0),
-          amp_func=out_of_plane_dip_amp_func_Hx(metalens))
-          ]
+                         wavelength=metalens['wavelength'],
+                         width=metalens['source_width']
+                        ),
+                  component=mp.Ex,
+                  amp_func=in_plane_dip_amp_func_Ex(metalens),
+                  center=mp.Vector3(0, metalens['source_coord']),
+                  size=mp.Vector3(metalens['sim_cell_width'], 0)),
+               mp.Source(src=mp.ContinuousSource(
+                         wavelength=metalens['wavelength'],
+                         width=metalens['source_width']
+                        ),
+                  component=mp.Hz,
+                  amp_func=in_plane_dip_amp_func_Hz(metalens),
+                  center=mp.Vector3(0, metalens['source_coord']),
+                  size=mp.Vector3(metalens['sim_cell_width'], 0))
+              ]
     # Set up the symmetries
     syms = []
     if metalens['x_mirror_symmetry']:
@@ -761,19 +768,19 @@ def get_flux_on_metalens(metalens):
     sim.init_sim()
     sim.run(until=metalens['simulation_time']) 
 
-    fields = {'Ez': sim.get_array(component=mp.Ez).transpose(),
-              'Hx': sim.get_array(component=mp.Hx).transpose(),
-              'Hy': sim.get_array(component=mp.Hy).transpose()}
+    fields = {'Ex': sim.get_array(component=mp.Ex).transpose(),
+              'Ey': sim.get_array(component=mp.Ey).transpose(),
+              'Hz': sim.get_array(component=mp.Hz).transpose()}
     transverse_axis = (
       np.linspace(-metalens['sim_cell_width']/2,
       metalens['sim_cell_width']/2,
-      fields['Ez'].shape[1]))
+      fields['Hz'].shape[1]))
     optical_axis = np.linspace(-metalens['sim_cell_height']/2,
                   metalens['sim_cell_height']/2,
-                  fields['Ez'].shape[0])
-    interface_index = np.argmin(np.abs(optical_axis-metalens['interface_coordinate']))
-    Sy = (np.real(np.conjugate(fields['Ez'])
-              * fields['Hx'])[interface_index])[np.abs(transverse_axis)<=metalens['R']]
+                  fields['Hz'].shape[0])
+    interface_index = np.argmin(np.abs(optical_axis-metalens['interface_coord']))
+    Sy = (np.real(-np.conjugate(fields['Ex'])
+                          * fields['Hz'])[interface_index])[np.abs(transverse_axis)<=metalens['R']]
     return np.sum(Sy)
 
 
@@ -807,7 +814,7 @@ def para_metalens(metalens, num_cores):
           else:
             print("Make amends for Windows or your other OS.")
 
-          from cem.metalenses_3 import *
+          from cem.metalenses_4 import *
 
           metalens = pickle.load(open('metalens_temp.pkl','rb'))
           metalens = simulate_metalens(metalens)
@@ -826,11 +833,25 @@ def para_metalens(metalens, num_cores):
   os.system('mv out.pkl parametalens-%s.pkl' % metalens['sim_id'])
   return out
 
+def dipole_fluxor(metalens):
+    '''
+    Used to find the full flux
+    using the partial flux through the aperture
+    of the metalens
+    '''
+    return ((2*metalens['chi'] + 2*np.sin(metalens['chi'])*np.cos(metalens['chi'])*np.cos(2*metalens['beta']))/np.pi)
+
+def into_the_farfield(nearfield, propagator):
+    nearfield_fft = np.fft.fft(nearfield)
+    field_ft = nearfield_fft * propagator
+    farfield = np.fft.ifft(field_ft)
+    return farfield
+
 def compute_post_simulation_params(metalens, verbose=True):
     '''From the result of a simulation, compute the following quantities:
       - rho_em : electromagnetic energy density
       - S_x, S_y : the x,y components of the time averaged Poynting vector
-      - max_axial_field_in_image_space: the y_coordinate of the maximum
+      - max_axial_field_in_image_space: the y_coord of the maximum
         energy density along the optical axis
       - reached_det_plane: the ratio of the integrated S_y at the
         detector plane to the integrated S_y right after the metalens.
@@ -840,87 +861,102 @@ def compute_post_simulation_params(metalens, verbose=True):
     '''
     metalens['optical_axis'] = np.linspace(-metalens['sim_cell_height']/2,
                                             metalens['sim_cell_height']/2,
-                                            metalens['fields']['Ez'].shape[0])
+                                            metalens['fields']['Hz'].shape[0])
     metalens['transverse_axis'] = np.linspace(-metalens['sim_cell_width']/2,
                                             metalens['sim_cell_width']/2,
-                                            metalens['fields']['Ez'].shape[1])
+                                            metalens['fields']['Hz'].shape[1])
     metalens['optical_axis_index'] = np.argmin(
                                           np.abs(metalens['transverse_axis']))
     metalens['top_of_post_index'] = np.argmin(np.abs(metalens['optical_axis']
-                                    - metalens['top_of_posts_coordinate']))
+                                    - metalens['top_of_posts_coord']))
     # far-field propagation
     metalens['nearfield_index'] = np.argmin(np.abs(metalens['optical_axis']
-                                    - metalens['nearfield_coordinate']))
+                                    - metalens['nearfield_coord']))
     metalens['lr_copies'] = int(round((metalens['freq_multiplier']-1)/2))
-
     metalens['farfields'] = {}
     metalens['nearfields'] = {}
-    propagator = None
+
+    one_field = list(metalens['fields'].keys())[0]
+    zeropad = np.zeros(metalens['fields'][one_field].shape[1] * metalens['lr_copies'])
+    metalens['kx_freqs'] = 2*np.pi*np.fft.fftfreq(
+                            metalens['fields'][one_field].shape[1]+2*zeropad.shape[0],
+                            d=1./metalens['resolution'])
+    metalens['ky'] = np.sqrt(metalens['k_0']**2
+                            -metalens['kx_freqs']**2+0j)
+                          
+    metalens['optical_axis_for_farfield'] = np.linspace(
+                  metalens['nearfield_coord'],
+                  metalens['detector_plane_coord'] + metalens['top_plus'],
+                  int(round((metalens['detector_plane_coord'] 
+                              + metalens['top_plus']
+                              - metalens['nearfield_coord'])
+                              * metalens['resolution'])))
+    metalens['optical_axis_for_farfield'] -= metalens['nearfield_coord']
+    metalens['optical_axis_for_farfield'] = (
+              (metalens['optical_axis_for_farfield']
+              .reshape((len(metalens['optical_axis_for_farfield']),1)))                                     )
+    propagator = np.exp(1j*metalens['ky']
+                        * metalens['optical_axis_for_farfield'])
+
+    # grab, pad, and fourier-transform the nearfields
     for field in metalens['fields']:
         if verbose:
             print("Computing the farfield for %s..." % field)
-        metalens['nearfields'][field] = metalens['fields'][field][metalens['nearfield_index']]
-        zeropad = np.zeros(len(metalens['nearfields'][field])*metalens['lr_copies'])
-        metalens['nearfields'][field] = np.concatenate((zeropad,metalens['nearfields'][field],zeropad))
-        metalens['nearfield_fft'] = np.fft.fft(metalens['nearfields'][field])
-        metalens['kx_frequencies'] = 2*np.pi*np.fft.fftfreq(
-                                len(metalens['nearfields'][field]),
-                                d=1./metalens['resolution'])
-        metalens['ky'] = np.sqrt(metalens['k_0']**2-metalens['kx_frequencies']**2+0j)
-        metalens['optical_axis_for_farfield'] = np.linspace(
-                    metalens['nearfield_coordinate'],
-                    metalens['detector_plane_coordinate'] + metalens['top_plus'],
-                    int(round((metalens['detector_plane_coordinate'] + metalens['top_plus']
-                    - metalens['nearfield_coordinate'])
-                    * metalens['resolution']))) - metalens['nearfield_coordinate']
-        metalens['optical_axis_for_farfield'] = (metalens['optical_axis_for_farfield'].reshape((len(metalens['optical_axis_for_farfield']),1)))
-        if propagator is None:
-            propagator = np.exp(1j*metalens['ky'] * metalens['optical_axis_for_farfield'])
-        metalens['field_ft'] = (metalens['nearfield_fft'] * propagator)
-        metalens['farfields'][field] = (np.fft.ifft(metalens['field_ft']))
-        del metalens['field_ft']
-        del metalens['nearfield_fft']
+        metalens['nearfields'][field] = (
+            metalens['fields'][field][metalens['nearfield_index']])
+        metalens['nearfields'][field] = np.concatenate(
+              (zeropad,metalens['nearfields'][field],zeropad))
+        metalens['farfields'][field] = into_the_farfield(metalens['nearfields'][field],propagator)
     del propagator
-    metalens['fields']['rho_em'] = 0.5*np.abs(metalens['fields']['Ez'])**2 # not fully correct
-    metalens['farfields']['rho_em'] = 0.5*np.abs(metalens['farfields']['Ez'])**2 # not fully correct
+    metalens['fields']['rho_em'] = np.abs(metalens['fields']['Hz'])**2 
+    metalens['farfields']['rho_em'] = np.abs(metalens['farfields']['Hz'])**2
+    
+    # stitch the nearfield and the farfield together
     for field in metalens['farfields']:
         if verbose:
             print("Patching the entire field for %s..." % field)
         nearFieldChunk = metalens['fields'][field][:metalens['nearfield_index']]
-        zeropad2 = np.zeros((nearFieldChunk.shape[0],nearFieldChunk.shape[1]*metalens['lr_copies']))
+        zeropad2 = np.zeros((nearFieldChunk.shape[0],
+                            nearFieldChunk.shape[1] * metalens['lr_copies']))
         paddedfield = np.concatenate((zeropad2,nearFieldChunk,zeropad2),axis=1)
         metalens['farfields'][field] = np.concatenate(
-          (paddedfield,
-          metalens['farfields'][field]))
-    
-    metalens['farfields']['Sx'] = np.real(-np.conjugate(metalens['farfields']['Ez'])
-                            * metalens['farfields']['Hy'])
-    metalens['farfields']['Sy'] = np.real(np.conjugate(metalens['farfields']['Ez'])
-                          * metalens['farfields']['Hx'])
+                              (paddedfield, metalens['farfields'][field]))
+    # compute the Poyting vector
+    metalens['farfields']['Sx'] = np.real(np.conjugate(metalens['farfields']['Ey'])
+                                * metalens['farfields']['Hz'])
+    metalens['farfields']['Sy'] = np.real(-np.conjugate(metalens['farfields']['Ex'])
+                          * metalens['farfields']['Hz'])
+    metalens['farfields']['Sr'] = np.sqrt(metalens['farfields']['Sx']**2
+                                  + metalens['farfields']['Sy']**2)
+    # update a few objects
     metalens['full_extent'][0] = (-metalens['sim_cell_width']
-                                 * metalens['freq_multiplier']/2)
+                                  * metalens['freq_multiplier']/2)
     metalens['full_extent'][1] = (metalens['sim_cell_width']
-                                 * metalens['freq_multiplier']/2)
+                                  * metalens['freq_multiplier']/2)
     metalens['transverse_axis_extended'] = np.linspace(
                                       metalens['full_extent'][0],
                                       metalens['full_extent'][1],
-                                      metalens['farfields']['Ez'].shape[1])
+                                      metalens['farfields']['Hz'].shape[1])
     metalens['optical_axis_index'] = np.argmin(
-                                      np.abs(metalens['transverse_axis_extended']))
+                                np.abs(metalens['transverse_axis_extended']))
     metalens['optical_axis_extended'] = np.linspace(metalens['full_extent'][2],
-                                              metalens['full_extent'][3],
-                                              metalens['farfields']['Ez'].shape[0])
-    metalens['detector_plane_index'] = np.argmin(np.abs(metalens['optical_axis_extended']-
-                                        metalens['detector_plane_coordinate']))
-    metalens['flux_through_target'] = np.sum(
-      metalens['farfields']['Sy'][metalens['detector_plane_index']][np.abs(metalens['transverse_axis_extended']) <=
-              metalens['w']])
-    metalens['full_flux'] = metalens['incident_flux']*np.pi/metalens['beta']
+                                        metalens['full_extent'][3],
+                                        metalens['farfields']['Hz'].shape[0])
+    metalens['detector_plane_index'] = np.argmin(
+                              np.abs(metalens['optical_axis_extended']
+                              - metalens['detector_plane_coord']))
+    # compute the flux that goes throug the target
+    target_mask = (np.abs(metalens['transverse_axis_extended']) <=
+                  metalens['w'])
+    Sy_on_target = metalens['farfields']['Sy'][metalens['detector_plane_index']]
+    metalens['flux_through_target'] = np.sum(Sy_on_target[target_mask])
+
+    metalens['full_flux'] = metalens['incident_flux']/dipole_fluxor(metalens)
     if 'incident_flux' in metalens.keys():
         metalens['tf/if'] = (metalens['flux_through_target']
-                             / metalens['incident_flux'])
+                              / metalens['incident_flux'])
         metalens['tf/ff'] = (metalens['flux_through_target']
-                             / metalens['full_flux'])
+                              / metalens['full_flux'])
     return metalens
 
 def wave_to_rgb(wavelength, gamma=0.8):
