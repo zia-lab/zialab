@@ -76,7 +76,8 @@ datadir = logdir + 'Data/'
 graphdir = logdir + 'Graph/'
 
 ## TEMP
-datadir = '/Users/juan/Temp/Data/'
+if sys.platform == 'linux':
+    datadir = '/users/jlizaraz/scratch/cem/experiments/oblique-1/out/'
 
 ##### log dirs #####
 
