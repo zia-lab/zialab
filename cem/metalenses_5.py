@@ -60,6 +60,8 @@ from itertools import product
 plt.rcParams['pdf.fonttype'] = 42
 plt.rcParams['ps.fonttype'] = 42
 
+pi = np.pi
+
 # setup directories
 
 home_folder = os.path.expanduser('~')
@@ -354,19 +356,19 @@ def aux_params(metalens):
 
     # determine size of simulation area
     metalens['sim_cell_width'] = (2*max(metalens['R'],metalens['w'])
-                                  + 2*metalens['pml_width']
+                                  + 2*metalens['PML_width']
                                   + 2*metalens['gap_h'])
     if metalens['w'] >= metalens['R']:
         metalens['sim_cell_width']+= 2*metalens['gap_h']
     metalens['sim_cell_height'] = (metalens['s']
-         + 2 * metalens['pml_width'] + metalens['post_height']
+         + 2 * metalens['PML_width'] + metalens['post_height']
          + metalens['b'] + 2 * metalens['gap_v'])
 
     # determine locations of different features
     metalens['source_coord'] = (-metalens['sim_cell_height']/2.
-                    + metalens['pml_width'] + metalens['gap_v'])
+                    + metalens['PML_width'] + metalens['gap_v'])
     metalens['interface_coord'] = (-metalens['sim_cell_height']/2.
-                                        + metalens['pml_width']
+                                        + metalens['PML_width']
                                         + metalens['s']
                                         + metalens['gap_v'])
     metalens['top_of_posts_coord'] = (metalens['interface_coord']
@@ -395,6 +397,7 @@ def aux_params(metalens):
                                         + metalens['post_height']
                                         + metalens['b'])
     metalens['post_centers'] = hex_lattice(metalens)
+    metalens['source_funcs'] = dip_equiv_currents(metalens)
     return metalens
 
 
@@ -438,7 +441,7 @@ def make_metalens_geometry(metalens):
                   material = mp.Medium(epsilon = metalens['epsilon']))
                 for w, position in zip(required_widths, metalens['post_centers'])]
     # create the substrate
-    metalens['substrate_height'] = (metalens['pml_width']
+    metalens['substrate_height'] = (metalens['PML_width']
                                     + metalens['gap_v']
                                     + metalens['s'])
     substrate = [mp.Block(size = mp.Vector3(metalens['sim_cell_width'],
@@ -502,6 +505,268 @@ def print_params(metalens):
         print_out_lines.append([k, thing_parsed])
     print(tabulate(print_out_lines))
 
+def equiv_currents(metalens):
+  def JExTop(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return k*(k*np.sqrt(x**2 + y**2 + (H + h)**2) + 1j)*(-x*np.cos(phi) + (H + h)*np.sin(phi)*np.cos(theta))*np.exp(1j*k*np.sqrt(x**2 + y**2 + (H + h)**2))/(4*pi*n*(x**2 + y**2 + (H + h)**2)**(3/2))
+  def JEyTop(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return k*(k*np.sqrt(x**2 + y**2 + (H + h)**2) + 1j)*(-y*np.cos(phi) + (H + h)*np.sin(phi)*np.sin(theta))*np.exp(1j*k*np.sqrt(x**2 + y**2 + (H + h)**2))/(4*pi*n*(x**2 + y**2 + (H + h)**2)**(3/2))
+  def JEzTop(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return 0
+  def JHxTop(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return (y*(H + h)*(H**2*k**2 + 2*H*h*k**2 + h**2*k**2 + k**2*x**2 + k**2*y**2 + 3*1j*k*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) - 3)*np.cos(phi) + (x*y*(H**2*k**2 + 2*H*h*k**2 + h**2*k**2 + k**2*x**2 + k**2*y**2 + 3*1j*k*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) - 3)*np.cos(theta) - (H**4*k**2 + H**2*(k**2*(2*x**2 + y**2) + 1j*k*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) - 1) + 4*H*h**3*k**2 + 2*H*h*(2*H**2*k**2 + k**2*(2*x**2 + y**2) + 1j*k*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) - 1) + h**4*k**2 + h**2*(6*H**2*k**2 + k**2*(2*x**2 + y**2) + 1j*k*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) - 1) + k**2*x**4 + k**2*x**2*y**2 + 1j*k*x**2*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) - 2*1j*k*y**2*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) - x**2 + 2*y**2)*np.sin(theta))*np.sin(phi))*np.exp(1j*k*np.sqrt(x**2 + y**2 + (H + h)**2))/(4*pi*n**2*(x**2 + y**2 + (H + h)**2)**(5/2))
+  def JHyTop(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return (-x*(H + h)*(H**2*k**2 + 2*H*h*k**2 + h**2*k**2 + k**2*x**2 + k**2*y**2 + 3*1j*k*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) - 3)*np.cos(phi) + (-x*y*(H**2*k**2 + 2*H*h*k**2 + h**2*k**2 + k**2*x**2 + k**2*y**2 + 3*1j*k*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) - 3)*np.sin(theta) + (H**4*k**2 + H**2*(k**2*(x**2 + 2*y**2) + 1j*k*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) - 1) + 4*H*h**3*k**2 + 2*H*h*(2*H**2*k**2 + k**2*(x**2 + 2*y**2) + 1j*k*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) - 1) + h**4*k**2 + h**2*(6*H**2*k**2 + k**2*(x**2 + 2*y**2) + 1j*k*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) - 1) + k**2*x**2*y**2 + k**2*y**4 - 2*1j*k*x**2*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) + 1j*k*y**2*np.sqrt(H**2 + 2*H*h + h**2 + x**2 + y**2) + 2*x**2 - y**2)*np.cos(theta))*np.sin(phi))*np.exp(1j*k*np.sqrt(x**2 + y**2 + (H + h)**2))/(4*pi*n**2*(x**2 + y**2 + (H + h)**2)**(5/2))
+  def JHzTop(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return 0
+  def JExBottom(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return -k*(k*np.sqrt(H**2 + x**2 + y**2) + 1j)*(H*np.sin(phi)*np.cos(theta) - x*np.cos(phi))*np.exp(1j*k*np.sqrt(H**2 + x**2 + y**2))/(4*pi*n*(H**2 + x**2 + y**2)**(3/2))
+  def JEyBottom(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return -k*(k*np.sqrt(H**2 + x**2 + y**2) + 1j)*(H*np.sin(phi)*np.sin(theta) - y*np.cos(phi))*np.exp(1j*k*np.sqrt(H**2 + x**2 + y**2))/(4*pi*n*(H**2 + x**2 + y**2)**(3/2))
+  def JEzBottom(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return 0
+  def JHxBottom(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return (-H*y*(H**2*k**2 + k**2*(x**2 + y**2) + 3*1j*k*np.sqrt(H**2 + x**2 + y**2) - 3)*np.cos(phi) + (-x*y*(H**2*k**2 + k**2*(x**2 + y**2) + 3*1j*k*np.sqrt(H**2 + x**2 + y**2) - 3)*np.cos(theta) + (H**4*k**2 + H**2*(k**2*(2*x**2 + y**2) + 1j*k*np.sqrt(H**2 + x**2 + y**2) - 1) + k**2*x**4 + x**2*(k**2*y**2 + 1j*k*np.sqrt(H**2 + x**2 + y**2) - 1) + 2*y**2*(-1j*k*np.sqrt(H**2 + x**2 + y**2) + 1))*np.sin(theta))*np.sin(phi))*np.exp(1j*k*np.sqrt(H**2 + x**2 + y**2))/(4*pi*n**2*(H**2 + x**2 + y**2)**(5/2))
+  def JHyBottom(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return (H*x*(H**2*k**2 + k**2*(x**2 + y**2) + 3*1j*k*np.sqrt(H**2 + x**2 + y**2) - 3)*np.cos(phi) + (x*y*(H**2*k**2 + k**2*(x**2 + y**2) + 3*1j*k*np.sqrt(H**2 + x**2 + y**2) - 3)*np.sin(theta) - (H**4*k**2 + H**2*(k**2*(x**2 + 2*y**2) + 1j*k*np.sqrt(H**2 + x**2 + y**2) - 1) + x**2*(k**2*y**2 - 2*1j*k*np.sqrt(H**2 + x**2 + y**2) + 2) + y**2*(k**2*y**2 + 1j*k*np.sqrt(H**2 + x**2 + y**2) - 1))*np.cos(theta))*np.sin(phi))*np.exp(1j*k*np.sqrt(H**2 + x**2 + y**2))/(4*pi*n**2*(H**2 + x**2 + y**2)**(5/2))
+  def JHzBottom(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return 0
+  def JExLeft(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return k*(k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) + 2*1j)*(w*np.cos(theta) + 2*x*np.sin(theta))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)/2)*np.sin(phi)/(2*pi*n*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)**(3/2))
+  def JEyLeft(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return 0
+  def JEzLeft(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return k*(k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) + 2*1j)*(w*np.cos(phi) + (2*H + h + 2*z)*np.sin(phi)*np.sin(theta))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)/2)/(2*pi*n*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)**(3/2))
+  def JHxLeft(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return -((w*np.sin(theta) - 2*x*np.cos(theta))*(2*H + h + 2*z)*(4*H**2*k**2 + 8*H*k**2*(h/2 + z) + k**2*(w**2 + 4*x**2 + 4*(h/2 + z)**2) + 6*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 12)*np.sin(phi) + (4*H**2*(k**2*(w**2 + 4*x**2) - 4*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) + 8) + 8*H*(h/2 + z)*(k**2*(w**2 + 4*x**2) - 4*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) + 8) + k**2*w**4 + 16*k**2*x**4 + w**2*(4*k**2*(2*x**2 + (h/2 + z)**2) + 2*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 4) + 8*x**2*(2*k**2*(h/2 + z)**2 + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 2) + 16*(h/2 + z)**2*(-1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) + 2))*np.cos(phi))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)/2)/(2*pi*n**2*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)**(5/2))
+  def JHyLeft(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return 0
+  def JHzLeft(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return (-4*x*(H + h/2 + z)*(4*H**2*k**2 + 8*H*k**2*(h/2 + z) + k**2*(w**2 + 4*x**2 + 4*(h/2 + z)**2) + 6*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 12)*np.cos(phi) + (2*w*x*(4*H**2*k**2 + 8*H*k**2*(h/2 + z) + k**2*(w**2 + 4*x**2 + 4*(h/2 + z)**2) + 6*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 12)*np.sin(theta) + (16*H**4*k**2 + 64*H**3*k**2*(h/2 + z) + 8*H**2*(k**2*(w**2 + 2*x**2 + 12*(h/2 + z)**2) + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 2) + 16*H*(h/2 + z)*(k**2*(w**2 + 2*x**2 + 4*(h/2 + z)**2) + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 2) + k**2*w**4 + w**2*(4*k**2*(x**2 + 2*(h/2 + z)**2) + 2*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 4) + 16*x**2*(k**2*(h/2 + z)**2 - 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) + 2) + 8*(h/2 + z)**2*(2*k**2*(h/2 + z)**2 + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 2))*np.cos(theta))*np.sin(phi))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)/2)/(2*pi*n**2*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)**(5/2))
+  def JExRight(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return k*(k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) + 2*1j)*(w*np.cos(theta) - 2*x*np.sin(theta))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)/2)*np.sin(phi)/(2*pi*n*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)**(3/2))
+  def JEyRight(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return 0
+  def JEzRight(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return -k*(k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) + 2*1j)*(-w*np.cos(phi) + (2*H + h + 2*z)*np.sin(phi)*np.sin(theta))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)/2)/(2*pi*n*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)**(3/2))
+  def JHxRight(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return (-(w*np.sin(theta) + 2*x*np.cos(theta))*(2*H + h + 2*z)*(4*H**2*k**2 + 8*H*k**2*(h/2 + z) + k**2*(w**2 + 4*x**2 + 4*(h/2 + z)**2) + 6*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 12)*np.sin(phi) + (4*H**2*(k**2*(w**2 + 4*x**2) - 4*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) + 8) + 8*H*(h/2 + z)*(k**2*(w**2 + 4*x**2) - 4*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) + 8) + k**2*w**4 + 16*k**2*x**4 + w**2*(4*k**2*(2*x**2 + (h/2 + z)**2) + 2*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 4) + 8*x**2*(2*k**2*(h/2 + z)**2 + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 2) + 16*(h/2 + z)**2*(-1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) + 2))*np.cos(phi))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)/2)/(2*pi*n**2*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)**(5/2))
+  def JHyRight(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return 0
+  def JHzRight(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return (2*w*x*(4*H**2*k**2 + 8*H*k**2*(h/2 + z) + k**2*(w**2 + 4*x**2 + 4*(h/2 + z)**2) + 6*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 12)*np.sin(phi)*np.sin(theta) + 4*x*(H + h/2 + z)*(4*H**2*k**2 + 8*H*k**2*(h/2 + z) + k**2*(w**2 + 4*x**2 + 4*(h/2 + z)**2) + 6*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 12)*np.cos(phi) - (16*H**4*k**2 + 64*H**3*k**2*(h/2 + z) + 8*H**2*(k**2*(w**2 + 2*x**2 + 12*(h/2 + z)**2) + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 2) + 16*H*(h/2 + z)*(k**2*(w**2 + 2*x**2 + 4*(h/2 + z)**2) + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 2) + k**2*w**4 + w**2*(4*k**2*(x**2 + 2*(h/2 + z)**2) + 2*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 4) + 16*x**2*(k**2*(h/2 + z)**2 - 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) + 2) + 8*(h/2 + z)**2*(2*k**2*(h/2 + z)**2 + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2) - 2))*np.sin(phi)*np.cos(theta))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)/2)/(2*pi*n**2*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*x**2 + 4*(h/2 + z)**2)**(5/2))
+  def JExFront(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return 0
+  def JEyFront(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return k*(k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) + 2*1j)*(w*np.sin(theta) - 2*y*np.cos(theta))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)/2)*np.sin(phi)/(2*pi*n*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)**(3/2))
+  def JEzFront(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return -k*(k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) + 2*1j)*(-w*np.cos(phi) + (2*H + h + 2*z)*np.sin(phi)*np.cos(theta))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)/2)/(2*pi*n*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)**(3/2))
+  def JHxFront(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return 0
+  def JHyFront(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return ((w*np.cos(theta) + 2*y*np.sin(theta))*(2*H + h + 2*z)*(4*H**2*k**2 + 8*H*k**2*(h/2 + z) + k**2*(w**2 + 4*y**2 + 4*(h/2 + z)**2) + 6*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 12)*np.sin(phi) - (4*H**2*(k**2*(w**2 + 4*y**2) - 4*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) + 8) + 8*H*(h/2 + z)*(k**2*(w**2 + 4*y**2) - 4*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) + 8) + k**2*w**4 + 16*k**2*y**4 + w**2*(4*k**2*(2*y**2 + (h/2 + z)**2) + 2*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 4) + 8*y**2*(2*k**2*(h/2 + z)**2 + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 2) + 16*(h/2 + z)**2*(-1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) + 2))*np.cos(phi))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)/2)/(2*pi*n**2*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)**(5/2))
+  def JHzFront(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return (-4*y*(H + h/2 + z)*(4*H**2*k**2 + 8*H*k**2*(h/2 + z) + k**2*(w**2 + 4*y**2 + 4*(h/2 + z)**2) + 6*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 12)*np.cos(phi) + (-2*w*y*(4*H**2*k**2 + 8*H*k**2*(h/2 + z) + k**2*(w**2 + 4*y**2 + 4*(h/2 + z)**2) + 6*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 12)*np.cos(theta) + (16*H**4*k**2 + 64*H**3*k**2*(h/2 + z) + 8*H**2*(k**2*(w**2 + 2*y**2 + 12*(h/2 + z)**2) + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 2) + 16*H*(h/2 + z)*(k**2*(w**2 + 2*y**2 + 4*(h/2 + z)**2) + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 2) + k**2*w**4 + w**2*(4*k**2*(y**2 + 2*(h/2 + z)**2) + 2*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 4) + 16*y**2*(k**2*(h/2 + z)**2 - 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) + 2) + 8*(h/2 + z)**2*(2*k**2*(h/2 + z)**2 + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 2))*np.sin(theta))*np.sin(phi))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)/2)/(2*pi*n**2*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)**(5/2))
+  def JExBack(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return 0
+  def JEyBack(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return k*(k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) + 2*1j)*(w*np.sin(theta) + 2*y*np.cos(theta))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)/2)*np.sin(phi)/(2*pi*n*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)**(3/2))
+  def JEzBack(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return k*(k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) + 2*1j)*(w*np.cos(phi) + (2*H + h + 2*z)*np.sin(phi)*np.cos(theta))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)/2)/(2*pi*n*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)**(3/2))
+  def JHxBack(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return 0
+  def JHyBack(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return ((w*np.cos(theta) - 2*y*np.sin(theta))*(2*H + h + 2*z)*(4*H**2*k**2 + 8*H*k**2*(h/2 + z) + k**2*(w**2 + 4*y**2 + 4*(h/2 + z)**2) + 6*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 12)*np.sin(phi) + (4*H**2*(k**2*(w**2 + 4*y**2) - 4*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) + 8) + 8*H*(h/2 + z)*(k**2*(w**2 + 4*y**2) - 4*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) + 8) + k**2*w**4 + 16*k**2*y**4 + w**2*(4*k**2*(2*y**2 + (h/2 + z)**2) + 2*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 4) + 8*y**2*(2*k**2*(h/2 + z)**2 + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 2) + 16*(h/2 + z)**2*(-1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) + 2))*np.cos(phi))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)/2)/(2*pi*n**2*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)**(5/2))
+  def JHzBack(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k'], metalens['n']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w, h = metalens['w'], metalens['h']
+      return (4*y*(H + h/2 + z)*(4*H**2*k**2 + 8*H*k**2*(h/2 + z) + k**2*(w**2 + 4*y**2 + 4*(h/2 + z)**2) + 6*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 12)*np.cos(phi) - (2*w*y*(4*H**2*k**2 + 8*H*k**2*(h/2 + z) + k**2*(w**2 + 4*y**2 + 4*(h/2 + z)**2) + 6*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 12)*np.cos(theta) + (16*H**4*k**2 + 64*H**3*k**2*(h/2 + z) + 8*H**2*(k**2*(w**2 + 2*y**2 + 12*(h/2 + z)**2) + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 2) + 16*H*(h/2 + z)*(k**2*(w**2 + 2*y**2 + 4*(h/2 + z)**2) + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 2) + k**2*w**4 + w**2*(4*k**2*(y**2 + 2*(h/2 + z)**2) + 2*1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 4) + 16*y**2*(k**2*(h/2 + z)**2 - 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) + 2) + 8*(h/2 + z)**2*(2*k**2*(h/2 + z)**2 + 1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2) - 2))*np.sin(theta))*np.sin(phi))*np.exp(1j*k*np.sqrt(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)/2)/(2*pi*n**2*(4*H**2 + 8*H*(h/2 + z) + w**2 + 4*y**2 + 4*(h/2 + z)**2)**(5/2))
+  return {
+      'Top':{
+        'JEx':JExTop,
+        'JEy':JEyTop,
+        'JEz':JEzTop,
+        'JHx':JHxTop,
+        'JHy':JHyTop,
+        'JHz':JHzTop},
+      'Bottom':{
+        'JEx':JExBottom,
+        'JEy':JEyBottom,
+        'JEz':JEzBottom,
+        'JHx':JHxBottom,
+        'JHy':JHyBottom,
+        'JHz':JHzBottom},
+      'Left':{
+        'JEx':JExLeft,
+        'JEy':JEyLeft,
+        'JEz':JEzLeft,
+        'JHx':JHxLeft,
+        'JHy':JHyLeft,
+        'JHz':JHzLeft},
+      'Right':{
+        'JEx':JExRight,
+        'JEy':JEyRight,
+        'JEz':JEzRight,
+        'JHx':JHxRight,
+        'JHy':JHyRight,
+        'JHz':JHzRight},
+      'Front':{
+        'JEx':JExFront,
+        'JEy':JEyFront,
+        'JEz':JEzFront,
+        'JHx':JHxFront,
+        'JHy':JHyFront,
+        'JHz':JHzFront},
+      'Back':{
+        'JEx':JExBack,
+        'JEy':JEyBack,
+        'JEz':JEzBack,
+        'JHx':JHxBack,
+        'JHy':JHyBack,
+        'JHz':JHzBack}
+      }
+
 def in_plane_dip_amp_func_Ex(metalens):
   '''
   returns the required amplitude function necessary to the z
@@ -538,24 +803,6 @@ def in_plane_dip_amp_func_Hz(metalens):
     bet = metalens['beta']
     return -H*(H*np.cos(bet) - x*np.sin(bet))*np.exp(1j*k*np.sqrt(H**2 + x**2))/(np.sqrt(k*np.sqrt(H**2 + x**2))*(H**2 + x**2))
   return far_JHz
-
-def far_ez_source_amp_func(metalens):
-    '''
-    returns the required amplitude
-    function necessary to simulate
-    an isotropic point source
-    '''
-    def far_ez(mpvec):
-        '''
-        remember that the vectors
-        that MEEP will provide here
-        are relative to the center of the source
-        '''
-        r = np.sqrt(mpvec.x**2 + (metalens['H'] - metalens['s'])**2)
-        ph = np.exp(1j * metalens['k'] * r)
-        am = 1./(r)**1.5
-        return am * ph
-    return far_ez
 
 def plot_em_energy_density(metalens, normFunc = Normalize, saver=False):
     vmin = np.percentile(metalens['rho_em'].flatten(),10)
@@ -624,28 +871,28 @@ def plot_simulation_cell(metalens):
              -metalens['sim_cell_height']/2],
             label='border')
     # pml wedge
-    ax.plot([-metalens['sim_cell_width']/2 + metalens['pml_width'],
-             metalens['sim_cell_width']/2 - metalens['pml_width'],
-             metalens['sim_cell_width']/2 - metalens['pml_width'],
-             -metalens['sim_cell_width']/2 + metalens['pml_width'],
-             -metalens['sim_cell_width']/2 + metalens['pml_width']],
-            [-metalens['sim_cell_height']/2 + metalens['pml_width'],
-             -metalens['sim_cell_height']/2 + metalens['pml_width'],
-             metalens['sim_cell_height']/2 - metalens['pml_width'],
-             metalens['sim_cell_height']/2 - metalens['pml_width'],
-             -metalens['sim_cell_height']/2 + metalens['pml_width']],
+    ax.plot([-metalens['sim_cell_width']/2 + metalens['PML_width'],
+             metalens['sim_cell_width']/2 - metalens['PML_width'],
+             metalens['sim_cell_width']/2 - metalens['PML_width'],
+             -metalens['sim_cell_width']/2 + metalens['PML_width'],
+             -metalens['sim_cell_width']/2 + metalens['PML_width']],
+            [-metalens['sim_cell_height']/2 + metalens['PML_width'],
+             -metalens['sim_cell_height']/2 + metalens['PML_width'],
+             metalens['sim_cell_height']/2 - metalens['PML_width'],
+             metalens['sim_cell_height']/2 - metalens['PML_width'],
+             -metalens['sim_cell_height']/2 + metalens['PML_width']],
             label='pml')
     # interface
     ax.plot([-metalens['sim_cell_width']/2,
             metalens['sim_cell_width']/2],
-            [(-metalens['sim_cell_height']/2 + metalens['pml_width']
+            [(-metalens['sim_cell_height']/2 + metalens['PML_width']
             + metalens['gap_v'] + metalens['s'])]*2,
             '--', ms=2, label='interface')
     # near-field plane
     ax.plot([-metalens['sim_cell_width']/2,
             metalens['sim_cell_width']/2],
             [(metalens['sim_cell_height']/2
-            - metalens['gap_v'] - metalens['pml_width'])]*2,
+            - metalens['gap_v'] - metalens['PML_width'])]*2,
             label='near-field plane')
     # source
     ax.plot([-metalens['R'],
@@ -662,7 +909,7 @@ def plot_simulation_cell(metalens):
     ax.add_patch(plt.Rectangle((-metalens['sim_cell_width']/2,
             (-metalens['sim_cell_height']/2)),
             metalens['sim_cell_width'],
-            metalens['s'] + metalens['gap_v'] + metalens['pml_width'],
+            metalens['s'] + metalens['gap_v'] + metalens['PML_width'],
             fc=(0,0,1,0.2),
             hatch='/'))
     ax.set_aspect('equal')
@@ -678,25 +925,70 @@ def simulate_metalens(metalens):
                       metalens['sim_cell_width'],
                       metalens['sim_cell_height'])
     # All around the simulation cell
-    pml_layers = [ mp.PML(metalens['pml_width']) ]
+    pml_layers = [ mp.PML(metalens['PML_width']) ]
     # Set up the sources
-    sources = [mp.Source(src=mp.ContinuousSource(
-                          wavelength=metalens['wavelength'],
-                          width=metalens['source_width']
-                        ),
-                  component=mp.Ex,
-                  # amp_func=in_plane_dip_amp_func_Ex(metalens),
-                  center=mp.Vector3(0, 0, metalens['source_coord']),
-                  size=mp.Vector3(2 * metalens['ws'], 2 * metalens['ws'], 0)),
-                mp.Source(src=mp.ContinuousSource(
-                          wavelength=metalens['wavelength'],
-                          width=metalens['source_width']
-                        ),
-                  component=mp.Hz,
-                  # amp_func=in_plane_dip_amp_func_Hz(metalens),
-                  center=mp.Vector3(0, 0, metalens['source_coord']),
-                  size=mp.Vector3(2 * metalens['ws'], 2 * metalens['ws'], 0))
-              ]
+    sources = [mp.Source(src=mp.ContinuousSource(wavelength=metalens['wavelength'],width=metalens['source_width']),component=m_component,
+      amp_func=metalens['source_funcs'][m_component_name],
+      center=mp.Vector3(0, 0, metalens['source_coord']),
+      size=mp.Vector3(2 * metalens['ws'], 2 * metalens['ws'], 0)) for m_component, m_component_name in zip([mp.Ex,mp.Ey,mp.Ez,mp.Hx,mp.Hy,mp.Hz],['JEx','JEy','JEz','JHx','JHy','JHz'])]
+     # sources = [
+     #            mp.Source(src=mp.ContinuousSource(
+     #                      wavelength=metalens['wavelength'],
+     #                      width=metalens['source_width']
+     #                    ),
+     #              component=mp.Ex,
+     #              amp_func=metalens['source_funcs']['JEx'],
+     #              center=mp.Vector3(0, 0, metalens['source_coord']),
+     #              size=mp.Vector3(2 * metalens['ws'], 2 * metalens['ws'], 0)),
+     #            mp.Source(src=mp.ContinuousSource(
+     #                      wavelength=metalens['wavelength'],
+     #                      width=metalens['source_width']
+     #                    ),
+     #              component=mp.Ey,
+     #              amp_func=metalens['source_funcs']['JEy'],
+     #              center=mp.Vector3(0, 0, metalens['source_coord']),
+     #              size=mp.Vector3(2 * metalens['ws'], 2 * metalens['ws'], 0)),
+     #            mp.Source(src=mp.ContinuousSource(
+     #                      wavelength=metalens['wavelength'],
+     #                      width=metalens['source_width']
+     #                    ),
+     #              component=mp.Ez,
+     #              amp_func=metalens['source_funcs']['JEz'],
+     #              center=mp.Vector3(0, 0, metalens['source_coord']),
+     #              size=mp.Vector3(2 * metalens['ws'], 2 * metalens['ws'], 0)),
+     #            mp.Source(src=mp.ContinuousSource(
+     #                      wavelength=metalens['wavelength'],
+     #                      width=metalens['source_width']
+     #                    ),
+     #              component=mp.Hx,
+     #              amp_func=metalens['source_funcs']['JHx'],
+     #              center=mp.Vector3(0, 0, metalens['source_coord']),
+     #              size=mp.Vector3(2 * metalens['ws'], 2 * metalens['ws'], 0)),
+     #            mp.Source(src=mp.ContinuousSource(
+     #                      wavelength=metalens['wavelength'],
+     #                      width=metalens['source_width']
+     #                    ),
+     #              component=mp.Hy,
+     #              amp_func=metalens['source_funcs']['JHy'],
+     #              center=mp.Vector3(0, 0, metalens['source_coord']),
+     #              size=mp.Vector3(2 * metalens['ws'], 2 * metalens['ws'], 0)),
+     #            mp.Source(src=mp.ContinuousSource(
+     #                      wavelength=metalens['wavelength'],
+     #                      width=metalens['source_width']
+     #                    ),
+     #              component=mp.Hz,
+     #              amp_func=metalens['source_funcs']['JHz'],
+     #              center=mp.Vector3(0, 0, metalens['source_coord']),
+     #              size=mp.Vector3(2 * metalens['ws'], 2 * metalens['ws'], 0))
+     #            mp.Source(src=mp.ContinuousSource(
+     #                      wavelength=metalens['wavelength'],
+     #                      width=metalens['source_width']
+     #                    ),
+     #              component=mp.Hz,
+     #              # amp_func=in_plane_dip_amp_func_Hz(metalens),
+     #              center=mp.Vector3(0, 0, metalens['source_coord']),
+     #              size=mp.Vector3(2 * metalens['ws'], 2 * metalens['ws'], 0))
+     #          ]
     # Set up the symmetries
     syms = []
     if metalens['x_mirror_symmetry'] and (metalens['beta'] == 0 or metalens['beta'] == np.pi/2):
@@ -751,7 +1043,7 @@ def get_flux_on_metalens(metalens):
     # Setup the MEEP objects
     cell = mp.Vector3(metalens['sim_cell_width'], metalens['sim_cell_height'])
     # All around the simulation cell
-    pml_layers = [ mp.PML(metalens['pml_width']) ]
+    pml_layers = [ mp.PML(metalens['PML_width']) ]
     # Set up the sources
 #    sources = [mp.Source(src=mp.ContinuousSource(
 #                         wavelength=metalens['wavelength'],
