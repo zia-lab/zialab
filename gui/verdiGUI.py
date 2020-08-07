@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 
 import tkinter as tk
 import random
@@ -13,7 +13,7 @@ class VerdiGUI():
     text_color = 'black'
 
     def __init__(self, verbose=True):
-        self.IP = '10.9.93.159'
+        self.IP = '10.9.93.186'
         self.verbose = verbose
         self.platform = sys.platform
         self.verdi = RemoteVerdi(IP=self.IP)

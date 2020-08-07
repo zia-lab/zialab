@@ -3,6 +3,7 @@
 import serial
 from time import sleep
 import atexit
+import sys
 
 # defaults and notes
 global defaults

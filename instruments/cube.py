@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 
-import serial
-from time import sleep
-import sys
-import os
-
 ############################################
 #   ____      _            _  _    ___  _  #
 #  / ___|   _| |__   ___  | || |  / _ \/ | #
@@ -15,31 +10,22 @@ import os
 ############################################
 
 # Coded by David on Jul 16 2019
+# Improved on July of 2020 to use in pulsed mode
 
-######## TO DO ########
-# test in windows
-# automatic port detection
-# include analog mode case
-#######################
-
-# defaults and others
-global defaults
-global cube_notes
-defaults = {
-'port' :  '/dev/ttyUSB0',
-'baudrate' : 19200,
-'lf' : '\r\n',
-'timeout': 0.1, # as per the serial conn
-'write_timeout': 0.1, # as per the serial conn
-'latency_t': 0.1 # used here and there as needed
-}
-
-# add comments here
-cube_notes = '''
-Cube is a tiny little thing.
-'''
+import serial, sys, os, atexit
+from time import sleep
 
 class Cube:
+    defaults = {
+        'port' :  '/dev/ttyUSB0',
+        'baudrate' : 19200,
+        'lf' : '\r\n',
+        'timeout': 0.1, # as per the serial conn
+        'write_timeout': 0.1, # as per the serial conn
+        'latency_t': 0.1 # used here and there as needed
+    }
+    if sys.platform == 'win32':
+        defaults['port'] = 'COM4'
     def __init__(self,
                 port=defaults['port'],
                 baudrate=defaults['baudrate'],
@@ -54,25 +40,32 @@ class Cube:
         self.baudrate = baudrate
         self.port = port
         self.lf = lf
+        self.cdrh = 0
+        self.HID = 'F96021702 1139602 401'
         self.platform = sys.platform
-        self.timeout = defaults['timeout']
-        self.latency_t = defaults['latency_t']
-        self.write_timeout = defaults['write_timeout']
-        self.notes = cube_notes
+        self.timeout = self.defaults['timeout']
+        self.latency_t = self.defaults['latency_t']
+        self.write_timeout = self.defaults['write_timeout']
+        self.notes = 'Cube is a tiny little thing, with a so-so single-mode.'
         # set up the serial connection
         if not dummy:
             if port == 'auto':
                 print('finding port keeping the platform in mind...')
             else:
-                try:
-                    self.serialconn = serial.Serial(port=self.port,
-                                        baudrate=self.baudrate,
-                                        timeout=self.timeout,
-                                        write_timeout=self.write_timeout)
-                except:
-                    print("Error: check connections and make sure serial is configured correctly.")
+                # try:
+                self.serialconn = serial.Serial(port=self.port,
+                                    baudrate=self.baudrate,
+                                    timeout=self.timeout,
+                                    write_timeout=self.write_timeout)
+                # except:
+                #     print("Error: check connections and make sure serial is configured correctly.")
         else:
             self.serialconn = 'dummy'
+        self.set_cdrh(self.cdrh)
+        atexit.register(self.close)
+    def close(self):
+        self.off()
+        self.serialconn.close()
     def makecmd(self,command):
         '''composes command according to serial config'''
         return command+self.lf
@@ -89,12 +82,24 @@ class Cube:
             os.system('%s "%s"' % (platform_open_cmds[self.platform],self.manual_fname))
         except:
             print("wups, could not open")
+    def set_cdrh(self,cdrh_state):
+        if cdrh_state not in [0,1]:
+            return "invalid cdrh state"
+        self.sendtodev(self.makecmd('CDRH=%d') % cdrh_state)
+    def set_mode(self,mode):
+        mode = mode.lower()
+        if mode not in ["cw","pulsed"]:
+            return "Invalid mode"
+        if mode == 'cw':
+            self.sendtodev(self.makecmd('CW=1'))
+        else:
+            self.sendtodev(self.makecmd('CW=0'))
     def cls(self):
         '''clear the queue on the laser'''
         self.sendtodev(self.makecmd('CLS'))
     def state(self):
-        '''query the current state of the laser'''
-        cube_state = self.sendtodev('?CW').split('=')[-1]
+        '''query the current light-emission state of the laser'''
+        cube_state = self.sendtodev('?L').split('=')[-1]
         if cube_state == '0':
             return "off"
         if cube_state == '1':
@@ -113,25 +118,41 @@ class Cube:
                             baudrate=self.baudrate,
                             timeout=self.timeout,
                             write_timeout=self.write_timeout)
+    def ping(self):
+        try:
+            pong = self.sendtodev('?HID')
+        except:
+            print("Failed in reaching device...")
+            pong = 'failed'
+        return (pong  == self.HID)
+
     def on(self):
         '''turn the laser on'''
-        if self.get_operation_status() == 'standby':
-            self.sendtodev('L=1')
-            print("Laser was in standby.")
-        return self.sendtodev('CW=1')
+        self.sendtodev('L=1')
+        # if self.get_operation_status() == 'standby':
+        #     self.sendtodev('L=1')
+        #     print("Laser was in standby.")
+        # return self.sendtodev('CW=1')
     def off(self):
         '''turn the laser off'''
-        return self.sendtodev('CW=0')
+        self.sendtodev('L=0')
+        # return self.sendtodev('CW=0')
+    def set_pulsed_power(self,power_in_mW):
+        '''set the power'''
+        cube_reply=self.sendtodev('CAL=%f' % power_in_mW)
     def set_power(self,power_in_mW):
         '''set the power'''
         cube_reply=self.sendtodev('P=%f' % power_in_mW)
-        self.cls()
         cube_power = self.get_power()
         return str(cube_reply)
     def get_power(self):
         '''get the power'''
         cube_power = self.sendtodev('?P').split('=')[-1]
-        self.cw_power = cube_power
+        return cube_power
+    def get_set_power(self):
+        '''get the currently set power'''
+        cube_power = self.sendtodev('?SP').split('=')[-1]
+        self.set_power = cube_power
         return cube_power
     def get_fault_list(self):
         '''query faults'''

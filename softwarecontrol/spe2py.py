@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-This module imports a Princeton Instruments LightField (SPE 3.0) file into a python environment.
+This module imports Princeton Instruments LightField (SPE 3.0) files into Python.
 """
 
 #                  .───────────────────.
@@ -21,49 +21,202 @@ This module imports a Princeton Instruments LightField (SPE 3.0) file into a pyt
 # https://github.com/ashirsch/spe2py
 
 import numpy as np
-import untangle
-import tkinter as tk
-from tkinter import filedialog as fdialog
+import untangle, os
+from dateutil.parser import parse
 from io import StringIO
-import matplotlib
-matplotlib.use("TkAgg")
-from matplotlib import pyplot as plt
-from matplotlib import cm
 
+def load(fname, filedir):
+    '''
+    Given the filename for an spe file and its directory,
+    a tuple (data, metadata) is returned. data consists of an array
+    of (wavelength, intensity) pairs, and metadata is a dictionary
+    that has aggregated a few relevant parameters.
+    An interpolation is made to return the intensities
+    for evenly spaced wavelengths (the calibration has slight
+    deviations from this).
+    '''
+    if not fname.endswith('.spe'):
+        fname = fname+'.spe'
+    full_fname = os.path.join(filedir,fname)
+    file = SpeFile(full_fname)
+    # grab wavelengths and counts
+    waves = file.wavelength
+    evenly_waves = np.linspace(waves[0],waves[-1],len(waves))
+    counts = np.interp(evenly_waves,waves,file.data[0][0][0])
+    waves = evenly_waves
+    # parse metadata
+    metadata = {}
+    metadata['Exposure time in ms'] = float((file.footer.SpeFormat.\
+                        DataHistories.DataHistory.Origin.Experiment.Devices.\
+                        Cameras.Camera.ShutterTiming.ExposureTime).cdata)
+    metadata['Background Correction'] = (file.footer.SpeFormat.DataHistories.
+                        DataHistory.Origin.Experiment.Devices.\
+                        Cameras.Camera.Experiment.OnlineCorrections.\
+                        BackgroundCorrection.Enabled.cdata)
+    metadata['Cosmic Ray Correction'] = (file.footer.SpeFormat.DataHistories.\
+                        DataHistory.Origin.Experiment.Devices.\
+                        Cameras.Camera.Experiment.OnlineCorrections.\
+                        CosmicRayCorrection.Enabled).cdata
+    metadata['FlatField Correction'] = (file.footer.SpeFormat.DataHistories.\
+                        DataHistory.Origin.Experiment.Devices.\
+                        Cameras.Camera.Experiment.OnlineCorrections.\
+                        FlatfieldCorrection.Enabled.cdata)
+    metadata['Camera'] = (file.footer.SpeFormat.DataHistories.DataHistory.\
+                        Origin.Experiment.System.Cameras.Camera['model'])
+    metadata['Spectrometer'] = (file.footer.SpeFormat.DataHistories.\
+                        DataHistory.Origin.Experiment.System.Spectrometers.\
+                        Spectrometer['model'])
+    metadata['Slit width in um'] = float((file.footer.SpeFormat.\
+                        DataHistories.DataHistory.Origin.Experiment.\
+                        Devices.Spectrometers.Spectrometer.OpticalPort.\
+                        Entrance.Side.Width.cdata))
+    date_taken = parse((file.footer.SpeFormat.\
+                        GeneralInformation.FileInformation)['created'])
+    metadata['Taken at'] = (date_taken).strftime("%Y-%m-%d %H:%M")
+    metadata['Source'] = fname
+    metadata['Max counts'] = int(max(counts))
+    metadata['Intensity Calibration'] = (file.footer.SpeFormat.\
+                        DataHistories.DataHistory.Origin.Experiment.Devices.\
+                        Spectrometers.Spectrometer.Experiment.\
+                        IntensityCalibration.Enabled.cdata)
+    metadata['Plot Title'] = '''{Source}, slit width = {Slit width in um} $\mu$m
+    exposure = {Exposure time in ms} ms, max_Counts = {Max counts}
+    {Spectrometer} + {Camera}, Intensity Calibration: {Intensity Calibration}'''.format(**metadata)
+    return np.array([waves,counts]).T, metadata
 
-def get_files(mult=False):
-    """
-    Uses tkinter to allow UI source file selection
-    Adapted from: http://stackoverflow.com/a/7090747
-    """
-    root = tk.Tk()
-    root.withdraw()
-    root.overrideredirect(True)
-    root.geometry('0x0+0+0')
-    root.deiconify()
-    root.lift()
-    root.focus_force()
-    filepaths = fdialog.askopenfilenames()
-    if not mult:
-        filepaths = filepaths[0]
-    root.destroy()
-    return filepaths
+def load_many(fname, filedir):
+    '''
+    Given the filename for an spe file and its directory,
+    a tuple (data, metadata) is returned. data consists of an array
+    of (wavelength, intensity) pairs, and metadata is a dictionary
+    that has aggregated a few relevant parameters.
+    An interpolation is made to return the intensities
+    for evenly spaced wavelengths (the calibration has slight
+    deviations from this).
+    '''
+    if not fname.endswith('.spe'):
+        fname = fname+'.spe'
+    full_fname = os.path.join(filedir,fname)
+    file = SpeFile(full_fname)
+    # grab wavelengths and counts
+    waves = file.wavelength
+    evenly_waves = np.linspace(waves[0],waves[-1],len(waves))
+    counts = [np.interp(evenly_waves,waves,frame[0][0]) for frame in file.data]
+    waves = evenly_waves
+    # parse metadata
+    metadata = {}
+    metadata['Exposure time in ms'] = float((file.footer.SpeFormat.\
+                        DataHistories.DataHistory.Origin.Experiment.Devices.\
+                        Cameras.Camera.ShutterTiming.ExposureTime).cdata)
+    metadata['Background Correction'] = (file.footer.SpeFormat.DataHistories.
+                        DataHistory.Origin.Experiment.Devices.\
+                        Cameras.Camera.Experiment.OnlineCorrections.\
+                        BackgroundCorrection.Enabled.cdata)
+    metadata['Cosmic Ray Correction'] = (file.footer.SpeFormat.DataHistories.\
+                        DataHistory.Origin.Experiment.Devices.\
+                        Cameras.Camera.Experiment.OnlineCorrections.\
+                        CosmicRayCorrection.Enabled).cdata
+    metadata['FlatField Correction'] = (file.footer.SpeFormat.DataHistories.\
+                        DataHistory.Origin.Experiment.Devices.\
+                        Cameras.Camera.Experiment.OnlineCorrections.\
+                        FlatfieldCorrection.Enabled.cdata)
+    metadata['Camera'] = (file.footer.SpeFormat.DataHistories.DataHistory.\
+                        Origin.Experiment.System.Cameras.Camera['model'])
+    metadata['Spectrometer'] = (file.footer.SpeFormat.DataHistories.\
+                        DataHistory.Origin.Experiment.System.Spectrometers.\
+                        Spectrometer['model'])
+    metadata['Slit width in um'] = float((file.footer.SpeFormat.\
+                        DataHistories.DataHistory.Origin.Experiment.\
+                        Devices.Spectrometers.Spectrometer.OpticalPort.\
+                        Entrance.Side.Width.cdata))
+    date_taken = parse((file.footer.SpeFormat.\
+                        GeneralInformation.FileInformation)['created'])
+    metadata['Taken at'] = (date_taken).strftime("%Y-%m-%d %H:%M")
+    metadata['Source'] = fname
+    metadata['Intensity Calibration'] = (file.footer.SpeFormat.\
+                        DataHistories.DataHistory.Origin.Experiment.Devices.\
+                        Spectrometers.Spectrometer.Experiment.\
+                        IntensityCalibration.Enabled.cdata)
+    metadata['Plot Title'] = '''{Source}, slit width = {Slit width in um} $\mu$m
+    exposure = {Exposure time in ms} ms
+    {Spectrometer} + {Camera}, Intensity Calibration: {Intensity Calibration}'''.format(**metadata)
+    timetags = file.metadata[:,:2]
+    return waves, counts, metadata, timetags
 
+def load2D(fname, filedir):
+    '''
+    Given the filename for an spe file and its directory,
+    a tuple (data, metadata) is returned. data consists of an array
+    of (wavelength, intensity) pairs, and metadata is a dictionary
+    that has aggregated a few relevant parameters.
+    An interpolation is made to return the intensities
+    for evenly spaced wavelengths (the calibration has slight
+    deviations from this).
+    '''
+    if not fname.endswith('.spe'):
+        fname = fname+'.spe'
+    full_fname = os.path.join(filedir,fname)
+    file = SpeFile(full_fname)
+    # grab wavelengths and counts
+    waves = file.wavelength
+    evenly_waves = np.linspace(waves[0],waves[-1],len(waves))
+    counts = [np.interp(evenly_waves,waves,file.data[0][0][i]) for i in range(len(file.data[0][0]))]
+    counts = np.array(counts)
+    waves = evenly_waves
+    # parse metadata
+    metadata = {}
+    metadata['Exposure time in ms'] = float((file.footer.SpeFormat.\
+                        DataHistories.DataHistory.Origin.Experiment.Devices.\
+                        Cameras.Camera.ShutterTiming.ExposureTime).cdata)
+    metadata['Background Correction'] = (file.footer.SpeFormat.DataHistories.
+                        DataHistory.Origin.Experiment.Devices.\
+                        Cameras.Camera.Experiment.OnlineCorrections.\
+                        BackgroundCorrection.Enabled.cdata)
+    metadata['Cosmic Ray Correction'] = (file.footer.SpeFormat.DataHistories.\
+                        DataHistory.Origin.Experiment.Devices.\
+                        Cameras.Camera.Experiment.OnlineCorrections.\
+                        CosmicRayCorrection.Enabled).cdata
+    metadata['FlatField Correction'] = (file.footer.SpeFormat.DataHistories.\
+                        DataHistory.Origin.Experiment.Devices.\
+                        Cameras.Camera.Experiment.OnlineCorrections.\
+                        FlatfieldCorrection.Enabled.cdata)
+    metadata['Camera'] = (file.footer.SpeFormat.DataHistories.DataHistory.\
+                        Origin.Experiment.System.Cameras.Camera['model'])
+    metadata['Spectrometer'] = (file.footer.SpeFormat.DataHistories.\
+                        DataHistory.Origin.Experiment.System.Spectrometers.\
+                        Spectrometer['model'])
+    metadata['Slit width in um'] = float((file.footer.SpeFormat.\
+                        DataHistories.DataHistory.Origin.Experiment.\
+                        Devices.Spectrometers.Spectrometer.OpticalPort.\
+                        Entrance.Side.Width.cdata))
+    date_taken = parse((file.footer.SpeFormat.\
+                        GeneralInformation.FileInformation)['created'])
+    metadata['Taken at'] = (date_taken).strftime("%Y-%m-%d %H:%M")
+    metadata['Source'] = fname
+    metadata['Max counts'] = int(np.max(counts))
+    metadata['Intensity Calibration'] = (file.footer.SpeFormat.\
+                        DataHistories.DataHistory.Origin.Experiment.Devices.\
+                        Spectrometers.Spectrometer.Experiment.\
+                        IntensityCalibration.Enabled.cdata)
+    metadata['Plot Title'] = '''{Source}, slit width = {Slit width in um} $\mu$m
+    exposure = {Exposure time in ms} ms, max_Counts = {Max counts}
+    {Spectrometer} + {Camera}, Intensity Calibration: {Intensity Calibration}'''.format(**metadata)
+    return waves, counts, metadata
+
+def read_at(file, pos, size, ntype):
+    file.seek(pos)
+    return np.fromfile(file, ntype, size)
 
 class SpeFile:
     def __init__(self, filepath=None):
-        if filepath is not None:
-            assert isinstance(filepath, str), 'Filepath must be a single string'
-            self.filepath = filepath
-        else:
-            self.filepath = get_files()
-
+        assert isinstance(filepath, str), 'Filepath must be a single string'
+        self.filepath = filepath
         with open(self.filepath) as file:
             self.header_version = read_at(file, 1992, 3, np.float32)[0]
             assert self.header_version >= 3.0, \
                 'This version of spe2py cannot load filetype SPE v. %.1f' % self.header_version
 
-            self.nframes = read_at(file, 1446, 2, np.uint16)[0]
+            self.nframes = read_at(file, 1446, 2, np.uint64)[0]
 
             self.footer = self._read_footer(file)
             self.dtype = self._get_dtype(file)
@@ -165,7 +318,7 @@ class SpeFile:
             roi = regionofinterest
         else:
             nroi = 1
-            roi = np.array([regionofinterest])
+            roi = [regionofinterest]
 
         return roi, nroi
 
@@ -251,78 +404,21 @@ class SpeFile:
 
         return data, metadata, metadata_names
 
-    def image(self, frame=0, roi=0):
-        """
-        Images loaded data for a specific frame and region of interest.
-        """
-        img = plt.imshow(self.data[frame][roi], cmap=cm.get_cmap('hot'))
-        plt.title(self.filepath)
-        return img
-
-    def specplot(self, frame=0, roi=0):
-        """
-        Plots loaded data for a specific frame, assuming the data is a one dimensional spectrum.
-        """
-        spectrum = plt.plot(self.wavelength.transpose(), self.data[frame][roi].transpose())
-        plt.grid()
-        return spectrum
-
     def xmltree(self, footer, ind=-1):
         """
         Prints the untangle footer object in tree form to easily view metadata fields. Ignores object elements that
         contain lists (e.g. ..Spectrometer.Turrets.Turret).
         """
+        treeleaves = []
         if dir(footer):
             ind += 1
             for item in dir(footer):
                 if isinstance(getattr(footer, item), list):
                     continue
                 else:
-                    print(ind * ' -->', item)
+                    # print(ind * ' -->', item)
+                    line = (ind * ' -->') + item
+                    # print('appending...')
+                    treeleaves.append(line)
                     self.xmltree(getattr(footer, item), ind)
-
-
-def load(filepaths=None):
-    """
-    Allows user to load multiple files at once. Each file is stored as an SpeFile object in the list batch.
-    """
-    if filepaths is None:
-        filepaths = get_files(mult=True)
-    batch = [[] for _ in range(0, len(filepaths))]
-    for file in range(0, len(filepaths)):
-        batch[file] = SpeFile(filepaths[file])
-    return_type = "list of SpeFile objects"
-    if len(batch) == 1:
-        batch = batch[0]
-        return_type = "SpeFile object"
-    print('Successfully loaded %i file(s) in a %s' % (len(filepaths), return_type))
-    return batch
-
-
-def read_at(file, pos, size, ntype):
-    """
-    Reads SPE source file at specific byte position.
-    Adapted from https://scipy.github.io/old-wiki/pages/Cookbook/Reading_SPE_files.html
-    """
-    file.seek(pos)
-    return np.fromfile(file, ntype, size)
-
-
-def imgobject(speobject, frame=0, roi=0):
-    """
-    Unbound function for imaging loaded data
-    """
-    img = plt.imshow(getattr(speobject, 'data')[frame][roi], cmap=cm.get_cmap('hot'))
-    return img
-
-
-if __name__ == "__main__":
-    obj = load()
-    if isinstance(obj, list):
-        for i in range(len(obj)):
-            plt.figure()
-            obj[i].image()
-    else:
-        plt.figure()
-        obj.image()
-    plt.show()
+        return treeleaves
