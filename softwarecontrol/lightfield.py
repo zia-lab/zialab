@@ -56,6 +56,21 @@ data_dir = os.path.join(log_dir,'Data')
 graphs_dir = os.path.join(log_dir,'Graphs')
 platform = sys.platform
 
+pixel_sizes = {'proEM': 16}
+
+resolutions = {
+    'proEM': {
+        '150g':[[10,20,25,50,100,150,200,300],
+               [0.553,0.553,0.553,0.9875,1.975,2.9625,3.95,5.925]],
+        '300g':[[10,20,25,50,100,150,200,300],
+               [0.2734,0.2734,0.2734,0.4883,0.9765,1.4648,1.953,2.9295]],
+        '50g':[[10,20,25,50,100,150,200,300],
+               [1.6691,1.6691,1.6691,2.9805,5.961,8.9415,11.922,17.8831]],
+    }
+}
+def slit_to_resolution(grating, slit_width):
+    return np.interp(slit_width,resolutions['proEM'][grating][0],resolutions['proEM'][grating][1])
+
 def get_latest_spe_fname(directory):
     '''
     Returns the filename of the most recent spe file in the given directory.
@@ -225,6 +240,7 @@ def resolution_test_HR(spectrumHR, lf, sig_gen, laser):
     spectrum1 = resolution_test(spectrum1, lf, sig_gen, laser)
     spectrum2 = resolution_test(spectrum2, lf, sig_gen, laser)
     return [spectrum1, spectrum2]
+
 
 def TRPL(spectrum, lf, sig_gen, laser):
     '''This function receives the configuration for an experiment

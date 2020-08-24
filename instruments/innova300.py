@@ -141,7 +141,7 @@ class Innova300():
             return 'PowerTrack is ON'
         else:
             return ''
-    def get_water_temperature():
+    def get_water_temperature(self):
         reply = self.sendtodev('PRINT WATER TEMPERATURE')
         return reply
     def get_hours_till_shutdown(self):

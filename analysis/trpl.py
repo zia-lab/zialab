@@ -11,7 +11,7 @@ from IPython.display import Image
 
 zlab_dir = 'D:/Google Drive/Zia Lab/'
 
-def slice_and_dice(spectrum, center_wave, pad_px, wavemin='auto', wavemax='auto'):
+def slice_and_dice(spectrum, center_wave, pad_px, wavemin='auto', wavemax='auto',times=[]):
     def lifetime_fit(t,tau,A,B):
         return A*np.exp(-(t)/tau)+B
     fsize=15
@@ -21,7 +21,10 @@ def slice_and_dice(spectrum, center_wave, pad_px, wavemin='auto', wavemax='auto'
     bottom_wave = waves[center_wave_idx-pad_px]
     cake_slice = spectrum['avg_signal_filtered'][:,center_wave_idx-pad_px:center_wave_idx+pad_px+1]
     std_slice = spectrum['avg_signal_std'][:,center_wave_idx-pad_px:center_wave_idx+pad_px+1]
-    the_times = np.mean(spectrum['bkg']['offset_timetags'][:spectrum['frames_per_rep']],axis=1)/1000.
+    if times == []:
+        the_times = np.mean(spectrum['bkg']['offset_timetags'][:spectrum['frames_per_rep']],axis=1)/1000.
+    else:
+        the_times = times
     totalo = np.abs(np.sum(cake_slice,axis=1))
     errors = np.sqrt(np.abs(np.sum(std_slice**2,axis=1)))
 
@@ -52,10 +55,10 @@ def slice_and_dice(spectrum, center_wave, pad_px, wavemin='auto', wavemax='auto'
     if wavemax == 'auto':
         wavemax = max(waves)
     ax[0].imshow([waves],
-          extent=[min(waves),max(waves),0,spectrum['bkg']['offset_timetags'][spectrum['frames_per_rep']-1][-1]/1000.],
+          extent=[min(waves),max(waves),0,the_times[-1]],
           origin='lower',
           cmap=ListedColormap(rainbow))
-    ax[0].imshow(vacuum,extent=[min(waves),max(waves),0,spectrum['bkg']['offset_timetags'][spectrum['frames_per_rep']-1][-1]/1000.],
+    ax[0].imshow(vacuum,extent=[min(waves),max(waves),0,the_times[-1]],
            aspect=16,origin='lower')
     ax[0].plot([spectrum['counts']['waves'][0],spectrum['counts']['waves'][-1]],
              [spectrum['excitation_duration_in_s']*1000]*2,
@@ -66,7 +69,7 @@ def slice_and_dice(spectrum, center_wave, pad_px, wavemin='auto', wavemax='auto'
 
     ax[1].imshow(cake_slice.T,
                extent=[0,
-                       spectrum['bkg']['offset_timetags'][spectrum['frames_per_rep']-1][-1]/1000.,
+                       the_times[-1],
                        spectrum['counts']['waves'][center_wave_idx-pad_px],
                        spectrum['counts']['waves'][center_wave_idx+pad_px]],
               origin='lower',
@@ -91,7 +94,7 @@ def slice_and_dice(spectrum, center_wave, pad_px, wavemin='auto', wavemax='auto'
     plt.subplots_adjust(hspace=-0.1)
     return fig
 
-def numcrunch(spectrum, lifetime_regression = True, pad_size=2):
+def numcrunch(spectrum, lifetime_regression = True, pad_size=2, save_figs=True):
     '''imports data from spe files'''
     fig_width = 15
     print("Loading data from .spe files...")
@@ -154,12 +157,15 @@ def numcrunch(spectrum, lifetime_regression = True, pad_size=2):
     ax[1].tick_params(axis='x',labelsize=tick_labels_fontsize)
     ax[1].set_xlim(min_signal,max_signal)
     ax[1].set_yscale('log')
-    figname = '%s-countshist-%d.jpg' % (spectrum['experiment_name'], int(time.time()))
-    print(figname)
-    fig.savefig(figname)
-    pil_img = Image(filename=figname)
-    display(pil_img)
-    spectrum['figs']['counts_histograms'] = fig
+    if save_figs:
+        figname = '%s-countshist-%d.jpg' % (spectrum['experiment_name'], int(time.time()))
+        print(figname)
+        fig.savefig(figname)
+        pil_img = Image(filename=figname)
+        display(pil_img)
+        spectrum['figs']['counts_histograms'] = fig
+    else:
+        plt.show()
 
     # rainbow plot
     rainbow = np.array([wav2RGB(wave) for idx, wave in enumerate(waves)])
@@ -194,13 +200,16 @@ def numcrunch(spectrum, lifetime_regression = True, pad_size=2):
     ax.tick_params(axis='y',labelsize=tick_labels_fontsize)
     ax.tick_params(axis='x',labelsize=tick_labels_fontsize)
     ax.plot(waves,steady/max(steady)*1,'w--')
-    figname = '%s-rainbow-%d.jpg' % (spectrum['experiment_name'], int(time.time()))
-    print(figname)
-    plt.tight_layout()
-    fig.savefig(figname)
-    pil_img = Image(filename=figname)
-    display(pil_img)
-    spectrum['figs']['rainbow'] = fig
+    if save_figs:
+        figname = '%s-rainbow-%d.jpg' % (spectrum['experiment_name'], int(time.time()))
+        print(figname)
+        plt.tight_layout()
+        fig.savefig(figname)
+        pil_img = Image(filename=figname)
+        display(pil_img)
+        spectrum['figs']['rainbow'] = fig
+    else:
+        plt.show()
 
     # logplot
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(fig_width, imshow_height))
@@ -222,10 +231,13 @@ def numcrunch(spectrum, lifetime_regression = True, pad_size=2):
     figname = '%s-logplot-%d.jpg' % (spectrum['experiment_name'], int(time.time()))
     print(figname)
     plt.tight_layout()
-    fig.savefig(figname)
-    pil_img = Image(filename=figname)
-    display(pil_img)
-    spectrum['figs']['logscale'] = fig
+    if save_figs:
+        fig.savefig(figname)
+        pil_img = Image(filename=figname)
+        display(pil_img)
+        spectrum['figs']['logscale'] = fig
+    else:
+        plt.show()
 
     # logscale spectrum
     spectrum['steady_spectrum_energy'] = spectrum['steady_spectrum']/(waves**2)
@@ -243,14 +255,16 @@ def numcrunch(spectrum, lifetime_regression = True, pad_size=2):
     ax.tick_params(axis='y',labelsize=tick_labels_fontsize)
     ax.tick_params(axis='x',labelsize=tick_labels_fontsize)
     ax.set_yscale('log')
-    figname = '%s-logspec-nm-%d.jpg' % (spectrum['experiment_name'], int(time.time()))
-    print(figname)
     plt.tight_layout()
-    fig.savefig(figname)
-    pil_img = Image(filename=figname)
-    display(pil_img)
-    spectrum['figs']['logspectrum-nm'] = fig
-
+    if save_figs:
+        figname = '%s-logspec-nm-%d.jpg' % (spectrum['experiment_name'], int(time.time()))
+        print(figname)
+        fig.savefig(figname)
+        pil_img = Image(filename=figname)
+        display(pil_img)
+        spectrum['figs']['logspectrum-nm'] = fig
+    else:
+        plt.show()
     # logscale spectrum
     spectrum['steady_spectrum_energy'] = spectrum['steady_spectrum']/(waves**2)
     spectrum['steady_spectrum_energy_std'] = spectrum['steady_spectrum_std']/(waves**2)
@@ -267,13 +281,16 @@ def numcrunch(spectrum, lifetime_regression = True, pad_size=2):
     ax.tick_params(axis='y',labelsize=tick_labels_fontsize)
     ax.tick_params(axis='x',labelsize=tick_labels_fontsize)
     ax.set_yscale('log')
-    figname = '%s-logspec-ev-%d.jpg' % (spectrum['experiment_name'], int(time.time()))
-    print(figname)
     plt.tight_layout()
-    fig.savefig(figname)
-    pil_img = Image(filename=figname)
-    display(pil_img)
-    spectrum['figs']['logspectrum-ev'] = fig
+    if save_figs:
+        figname = '%s-logspec-ev-%d.jpg' % (spectrum['experiment_name'], int(time.time()))
+        print(figname)
+        fig.savefig(figname)
+        pil_img = Image(filename=figname)
+        display(pil_img)
+        spectrum['figs']['logspectrum-ev'] = fig
+    else:
+        plt.show()
     if lifetime_regression:
         # wave-dep lifetime calcs
         def slice_and_fit(center_wave, pad_px):
@@ -334,13 +351,16 @@ def numcrunch(spectrum, lifetime_regression = True, pad_size=2):
         ax.tick_params(axis='y',labelsize=tick_labels_fontsize)
         ax.tick_params(axis='x',labelsize=tick_labels_fontsize)
         plt.legend()
-        figname = '%s-%d.jpg' % (spectrum['experiment_name'], int(time.time()))
-        print(figname)
         plt.tight_layout()
-        fig.savefig(figname)
-        pil_img = Image(filename=figname)
-        display(pil_img)
-        spectrum['figs']['lifetime'] = fig
+        if save_figs:
+            figname = '%s-%d.jpg' % (spectrum['experiment_name'], int(time.time()))
+            print(figname)
+            fig.savefig(figname)
+            pil_img = Image(filename=figname)
+            display(pil_img)
+            spectrum['figs']['lifetime'] = fig
+        else:
+            plt.show()
     return spectrum
 
 def quick_loader_with_stats(snippet, spec):

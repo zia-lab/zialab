@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 
-import glob
-import os
-import win32com
+# does not work when imported as a module
+# copy and paste in notebook
 
-# worked alright in a notebook
-# code pasted here hastily
-# perhaps will not work inmmediately
+import glob, os, win32com, win32com.client
 
 class SonyCam():
     def __init__(self):
