@@ -42,7 +42,7 @@
 
 import ctypes, math, os, time
 
-anc350v3 = ctypes.windll.LoadLibrary('D:\\Google Drive\\Zia Lab\\Codebase\\zialab\\instruments\\anc350v3.dll')
+anc350v3 = ctypes.windll.LoadLibrary('D:\\Google Drive\\Zia Lab\\Codebase\\zialab\\instruments\\DLLs\\anc350v3.dll')
 
 # aliases for the functions in the dll
 
@@ -694,7 +694,7 @@ class Nanocube:
     def moveto(self,
                axisNo: int,
                target_position: float,
-               target_range: float = 0.1
+               target_range: float = 0.1,
                frequency: float = 50.,
                amplitude: float = 30.) -> None:
         '''
@@ -709,8 +709,8 @@ class Nanocube:
         Returns:
             None
         '''
-        self.setFrequency(frequency)
-        self.setAmplitude(amplitude)
+        self.setFrequency(axisNo,frequency)
+        self.setAmplitude(axisNo,amplitude)
         self.setAxisOutput(axisNo, 1, 1)
         self.setTargetPosition(axisNo, target_position)
         self.setTargetRange(axisNo, target_range)
@@ -725,74 +725,89 @@ class Nanocube:
         self.setAxisOutput(2,0,1)
 
 
-    # def travelto(self, axisNo, target_position, target_precision = 0.5):
-    #     big_range = 3000./2. # distance to target that enforces continous motion
-    #     mid_range = 20./2. # distance to target that enforces single steps
-    #     fine_range = 5./2. # distance to target that hones in using DC voltage
-    #     max_voltage = 60 # this is the maximum voltage that can be set
-    #     dc_voltage = 0. # this is the starting voltage for fine stepping
-    #     frequency_in_Hz = 50
-    #     min_coarse = 20 # for big stepping voltaga shan't be smaller than this
-    #     dc_delta = 1 # initial step size for finding fine step voltage
-    #     coarse_amplitude = max_voltage / 2.
-    #     coarse_delta = 1 # amount by which the continouse motion is increased/decreased
-    #     current_position = self.getPosition(axisNo)
-    #     delta = self.getPosition(axisNo) - target_position
-    #     previous_position = current_position
-    #     self.setAxisOutput(axisNo, 1, True)
-    #     self.setFrequency(axisNo, frequency_in_Hz)
-    #     start_time = time.time()
-    #     trajectory = []
-    #
-    #     while abs(delta) >= target_precision:
-    #         current_position = self.getPosition(axisNo)
-    #         trajectory.append([time.time()-start_time, current_position])
-    #         if ((-fine_range) < (current_position-target_position) < 0) : # target must be approached from below
-    #             print("fine stepping...")
-    #             self.setDcVoltage(axisNo,dc_voltage)
-    #             # fine tuning mode
-    #             if (previous_position - target_position)*(current_position - target_position) < 0:
-    #                 dc_delta = dc_delta/2.
-    #             if current_position > target_position:
-    #                 dc_voltage = abs(dc_voltage - dc_delta)
-    #                 self.setDcVoltage(axisNo, dc_voltage)
-    #             else:
-    #                 dc_voltage = dc_voltage + dc_delta
-    #                 self.setDcVoltage(axisNo, dc_voltage)
-    #         elif abs(current_position-target_position) <= mid_range:
-    #             print("mid stepping...")
-    #             if current_position > target_position:
-    #                 direction = 1 # backward
-    #             else:
-    #                 direction = 0 # forward
-    #             self.setAmplitude(axisNo,coarse_amplitude)
-    #             self.startSingleStep(axisNo,direction)
-    #             if (target_position-current_position)*(target_position-self.getPosition(axisNo)) < 0:
-    #                 coarse_amplitude = coarse_amplitude - coarse_delta
-    #                 if coarse_amplitude < min_coarse:
-    #                     coarse_amplitude = min_coarse
-    #         elif abs(current_position-target_position) <= big_range:
-    #             print("big stepping")
-    #             # coarse continuous motion
-    #             self.setAmplitude(axisNo, coarse_amplitude)
-    #             if current_position > target_position:
-    #                 direction = 1 # backward
-    #             else:
-    #                 direction = 0 # forward
-    #             self.startContinuousMove(axisNo,1,direction)
-    #             while (target_position-current_position)*(target_position-self.getPosition(axisNo)) > 0:
-    #                 pass
-    #             else:
-    #                 coarse_amplitude = coarse_amplitude - coarse_delta
-    #                 if coarse_amplitude < min_coarse:
-    #                     coarse_amplitude = min_coarse
-    #             self.startContinuousMove(axisNo,0,direction)
-    #         previous_position = current_position
-    #         delta = current_position - target_position
-    #         time.sleep(0.1)
-    #     else:
-    #         print("Target reached!")
-    #     if abs(self.getPosition(axisNo) - target_position) > target_precision:
-    #         print("Repeating...")
-    #         self.travelto(axisNo, target_position)
-    #     return trajectory
+    def travelto(self, axisNo, target_position, target_precision = 0.5):
+        big_range = 3000./2. # distance to target that enforces continous motion
+        mid_range = 20./2. # distance to target that enforces single steps
+        fine_range = 5./2. # distance to target that hones in using DC voltage
+        max_voltage = 60 # this is the maximum voltage that can be set
+        dc_voltage = 0. # this is the starting voltage for fine stepping
+        frequency_in_Hz = 200
+        min_coarse = 40 # for big stepping voltage shan't be smaller than this
+        dc_delta = 1 # initial step size for finding fine step voltage
+        coarse_amplitude = 50.
+        coarse_delta = 1 # amount by which the continouse motion is increased/decreased
+        current_position = self.getPosition(axisNo)
+        delta = self.getPosition(axisNo) - target_position
+        previous_position = current_position
+        self.setAxisOutput(axisNo, 1, True)
+        self.setFrequency(axisNo, frequency_in_Hz)
+        start_time = time.time()
+        trajectory = []
+
+        while abs(delta) >= target_precision:
+            current_position = self.getPosition(axisNo)
+            trajectory.append([time.time()-start_time, current_position])
+            if ((-fine_range) < (current_position-target_position) < 0) : # target must be approached from below
+                print("fine stepping...", end='|')
+                if dc_voltage >= max_voltage:
+                    dc_voltage = 0
+                    print("mid stepping out of snag...", end='|')
+                    if current_position > target_position:
+                        direction = 1 # backward
+                    else:
+                        direction = 0 # forward
+                    self.setAmplitude(axisNo, coarse_amplitude)
+                    self.startSingleStep(axisNo,direction)
+                    if (target_position-current_position)*(target_position-self.getPosition(axisNo)) < 0:
+                        coarse_amplitude = coarse_amplitude - coarse_delta
+                        if coarse_amplitude < min_coarse:
+                            coarse_amplitude = min_coarse
+                self.setDcVoltage(axisNo,dc_voltage)
+                # fine tuning mode
+                if (previous_position - target_position)*(current_position - target_position) < 0:
+                    dc_delta = dc_delta/2.
+                if current_position > target_position:
+                    dc_voltage = abs(dc_voltage - dc_delta)
+                    self.setDcVoltage(axisNo, dc_voltage)
+                    # print("V="+str(dc_voltage))
+                else:
+                    dc_voltage = dc_voltage + dc_delta
+                    self.setDcVoltage(axisNo, dc_voltage)
+                    # print("V="+str(dc_voltage))
+            elif abs(current_position-target_position) <= mid_range:
+                print("mid stepping...", end='|')
+                if current_position > target_position:
+                    direction = 1 # backward
+                else:
+                    direction = 0 # forward
+                self.setAmplitude(axisNo, coarse_amplitude)
+                self.startSingleStep(axisNo,direction)
+                if (target_position-current_position)*(target_position-self.getPosition(axisNo)) < 0:
+                    coarse_amplitude = coarse_amplitude - coarse_delta
+                    if coarse_amplitude < min_coarse:
+                        coarse_amplitude = min_coarse
+            elif abs(current_position-target_position) <= big_range:
+                print("big stepping...", end='|')
+                # coarse continuous motion
+                self.setAmplitude(axisNo, coarse_amplitude)
+                if current_position > target_position:
+                    direction = 1 # backward
+                else:
+                    direction = 0 # forward
+                self.startContinuousMove(axisNo,1,direction)
+                while (target_position-current_position)*(target_position-self.getPosition(axisNo)) > 0:
+                    pass
+                else:
+                    coarse_amplitude = coarse_amplitude - coarse_delta
+                    if coarse_amplitude < min_coarse:
+                        coarse_amplitude = min_coarse
+                self.startContinuousMove(axisNo,0,direction)
+            previous_position = current_position
+            delta = current_position - target_position
+            time.sleep(0.1)
+        else:
+            print("Target reached!")
+        if abs(self.getPosition(axisNo) - target_position) > target_precision:
+            print("Repeating...")
+            self.travelto(axisNo, target_position)
+        return trajectory

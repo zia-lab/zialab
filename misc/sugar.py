@@ -20,6 +20,10 @@ def bell():
     winsound.PlaySound(os.path.join(codebase_dir,'sounds','bell.wav'),
                    winsound.SND_ASYNC)
 
+def ding():
+    winsound.PlaySound(os.path.join(codebase_dir,'sounds','ding.wav'),
+                   winsound.SND_ASYNC)
+
 def send_message(message):
     conn = http.client.HTTPSConnection("api.pushover.net",443)
     conn.request("POST", "/1/messages.json",

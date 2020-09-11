@@ -42,6 +42,7 @@ class Innova300():
                 max_power=defaults['max_power'],
                 wavelength=defaults['wavelength']):
         self.port = port
+        self.max_current = 40.
         self.fullname = 'Coherent - Verdi'
         self.shortname = 'Verdi'
         self.max_power = max_power # in watts
@@ -155,7 +156,14 @@ class Innova300():
         else:
             reply = self.sendtodev('LIGHT=%.4f' % power_in_watts)
             return self.get_power()
-    def close_serial(self):
+    def set_current(self, current_in_amps):
+        '''if not in current-regulated mode, mode will be changed by this.'''
+        if current_in_amps > self.max_current:
+            return 'current out of set maximum of %.1f' % self.max_current
+        else:
+            reply = self.sendtodev('CURRENT=%.4f' % current_in_amps)
+            return self.get_current()
+    def close(self):
         self.serialconn.close()
     def off(self):
         '''set the laser OFF'''
@@ -182,4 +190,4 @@ class Innova300():
             self.sendtodev('STATUS=1')
             sleep(0.1)
             self.sendtodev('STATUS=1')
-    atexit.register(close_serial)
+    atexit.register(close)
