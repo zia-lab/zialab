@@ -29,25 +29,25 @@ K1dXSXbRyXbuMMWkdHCwZwGSZUQSHKZJKSH&JtdWzdQkkUV
 kjfSWXHkWHXS9ZyWodGkOumAUdXdHWbHHHHdNZXHbwWWXWX
 ```
 
-> analysis : deconvolutions and the like
+> **analysis : deconvolutions and the like**
 >> trpl.py : time-resolved spectroscopy with proEM.
 
-> cem : computational electromagnetism
+> **cem : computational electromagnetism**
 >> metalenses_x.py : MEEP, S4 and numpy for simulating metasurfaces
 
-> data : bits of useful spectroscopic information
+> **data : bits of useful spectroscopic information**
 >> nist_atomic_spectra_database_levels.csv : from NIST
 
 >> nist_atomic_spectra_database_lines.csv : from NIST
 
-> gui : graphical user interfaces
+> **gui : graphical user interfaces**
 >> picoGeiger2ch.py : view of countrate from PicoHarp
 
 >> verdiGUI.py : GUI for controlling Verdi through RPi
 
 >> monitor : general purpose viewer of a time-changing var
 
-> instruments
+> **instruments**
 >> ADS1x15.py : to read ADC in Raspberry Pi
 
 >> DCC165C-HQ.py : read data from a Thorlabs camera
@@ -90,10 +90,10 @@ kjfSWXHkWHXS9ZyWodGkOumAUdXdHWbHHHHdNZXHbwWWXWX
 
 >> verdi.py : serial control of Verdi
 
-> man : manuals for instruments
+> **man : manuals for instruments**
 >> ...
 
-> softwarecontrol:
+> **softwarecontrol:**
 >> lightfield.py : controling Lightfield from Python
 
 >> spe2py.py : importing spe files into Python
