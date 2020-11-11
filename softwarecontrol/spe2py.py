@@ -160,8 +160,13 @@ def load2D(fname, filedir):
     # grab wavelengths and counts
     waves = file.wavelength
     evenly_waves = np.linspace(waves[0],waves[-1],len(waves))
-    counts = [np.interp(evenly_waves,waves,file.data[0][0][i]) for i in range(len(file.data[0][0]))]
-    counts = np.array(counts)
+    num_frames = len(file.data)
+    if num_frames == 1:
+        counts = [np.interp(evenly_waves,waves,file.data[0][0][i]) for i in range(len(file.data[0][0]))]
+        counts = np.array(counts)
+    else:
+        counts = [[np.interp(evenly_waves,waves,file.data[k][0][i]) for i in range(len(file.data[0][0]))] for k in range(num_frames)]
+        counts = np.array(counts)
     waves = evenly_waves
     # parse metadata
     metadata = {}

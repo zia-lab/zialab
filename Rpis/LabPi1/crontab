@@ -1,0 +1,4 @@
+0 * * * * sudo /usr/local/bin/IPsend
+@reboot sudo sleep 10 && sudo /usr/local/bin/IPsend
+@reboot /usr/local/bin/remotePDmonitor
+@reboot /usr/local/bin/voltreadmonitor

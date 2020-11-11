@@ -93,15 +93,16 @@ def focal_length(na, aperture):
     '''
     return aperture/2 * np.sqrt(1/na**2-1)
 
-def imaging_phase_profile(H, d, w, R, x, y, wavelength, n, eta, **kwargs):
+def imaging_phase_profile(H, d, w, R, x, y, wavelength, n, **kwargs):
     '''
     Given the depth H of a point emitter,
     the distance d from the metalens surface to the detector plane,
-    the radius of the detector,
+    w the radius of the detector,
     and the radius R of the metalens,
     compute the phase required at a position x in the plane
     of the metasurface.
     '''
+    eta = (w-R)/R
     return ((2 * np.pi / wavelength) * n * (H - np.sqrt(x**2 + y**2 + H**2)) -
      (2 * np.pi / wavelength) * (d - np.sqrt(eta**2 * (x**2 + y**2) + d**2)) / eta)
 
@@ -117,9 +118,8 @@ def expand_sim_params(sim_params):
     '''
     sim_params['field_height'] = sim_params['post_height']
     sim_params['half_cell_width'] = sim_params['cell_width'] / 2.
-    sim_params['post_radius'] = sim_params['post_diameter'] / 2.
+    sim_params['post_radius'] = sim_params['post_width'] / 2.
     sim_params['excitation_frequency'] = 1. / sim_params['wavelength']
-
     return sim_params
 
 def post_field(sim_params):
@@ -127,13 +127,16 @@ def post_field(sim_params):
     Given the S4-simulation parameters, returns the electric field
     array(Exr, Eyr, Ezr, Exi, Eyi, Ezi) at (x_coord, y_coord, field_height)
     by executing an S4 lua script.
+    Posts are cylinders arranged in a honeycomb lattice.
     '''
     if sim_params['pol'] == 's':
         sim_params['s_amp'] = 1.0
         sim_params['p_amp'] = 0.
-    else:
+    elif sim_params['pol'] == 'p':
         sim_params['s_amp'] = 0.
         sim_params['p_amp'] = 1.0
+    else:
+        return "polarization not given"
     lua = '''
     S = S4.NewSimulation()
     -- specifying all lengths in microns.
@@ -157,7 +160,6 @@ def post_field(sim_params):
         'top',    -- new layer name
         0,        -- thickness
         'substrate') -- background material (semi-infinite)
-
 
     S:SetLayerPatternCircle(
         'forest', -- layer to pattern
@@ -504,6 +506,38 @@ def print_params(metalens):
             thing_parsed = thing
         print_out_lines.append([k, thing_parsed])
     print(tabulate(print_out_lines))
+
+def equiv_currents_bottom(metalens):
+  def JExBottom(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k_bottom'], metalens['n_bottom']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w = metalens['w']
+      return -k*(k*np.sqrt(H**2 + x**2 + y**2) + 1j)*(H*np.sin(phi)*np.cos(theta) - x*np.cos(phi))*np.exp(1j*k*np.sqrt(H**2 + x**2 + y**2))/(4*pi*n*(H**2 + x**2 + y**2)**(3/2))
+  def JEyBottom(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k_bottom'], metalens['n_bottom']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w = metalens['w']
+      return -k*(k*np.sqrt(H**2 + x**2 + y**2) + 1j)*(H*np.sin(phi)*np.sin(theta) - y*np.cos(phi))*np.exp(1j*k*np.sqrt(H**2 + x**2 + y**2))/(4*pi*n*(H**2 + x**2 + y**2)**(3/2))
+  def JEzBottom(mpvec):
+      return 0.
+  def JHxBottom(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k_bottom'], metalens['n_bottom']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w = metalens['w']
+      return (-H*y*(H**2*k**2 + k**2*(x**2 + y**2) + 3*1j*k*np.sqrt(H**2 + x**2 + y**2) - 3)*np.cos(phi) + (-x*y*(H**2*k**2 + k**2*(x**2 + y**2) + 3*1j*k*np.sqrt(H**2 + x**2 + y**2) - 3)*np.cos(theta) + (H**4*k**2 + H**2*(k**2*(2*x**2 + y**2) + 1j*k*np.sqrt(H**2 + x**2 + y**2) - 1) + k**2*x**4 + x**2*(k**2*y**2 + 1j*k*np.sqrt(H**2 + x**2 + y**2) - 1) + 2*y**2*(-1j*k*np.sqrt(H**2 + x**2 + y**2) + 1))*np.sin(theta))*np.sin(phi))*np.exp(1j*k*np.sqrt(H**2 + x**2 + y**2))/(4*pi*n**2*(H**2 + x**2 + y**2)**(5/2))
+  def JHyBottom(mpvec):
+      x, y, z = mpvec.x, mpvec.y, mpvec.z
+      H, k, n = (metalens['H'] - metalens['s']), metalens['k_bottom'], metalens['n_bottom']
+      phi, theta = metalens['dip_dir']['phi'], metalens['dip_dir']['theta']
+      w = metalens['w']
+      return (H*x*(H**2*k**2 + k**2*(x**2 + y**2) + 3*1j*k*np.sqrt(H**2 + x**2 + y**2) - 3)*np.cos(phi) + (x*y*(H**2*k**2 + k**2*(x**2 + y**2) + 3*1j*k*np.sqrt(H**2 + x**2 + y**2) - 3)*np.sin(theta) - (H**4*k**2 + H**2*(k**2*(x**2 + 2*y**2) + 1j*k*np.sqrt(H**2 + x**2 + y**2) - 1) + x**2*(k**2*y**2 - 2*1j*k*np.sqrt(H**2 + x**2 + y**2) + 2) + y**2*(k**2*y**2 + 1j*k*np.sqrt(H**2 + x**2 + y**2) - 1))*np.cos(theta))*np.sin(phi))*np.exp(1j*k*np.sqrt(H**2 + x**2 + y**2))/(4*pi*n**2*(H**2 + x**2 + y**2)**(5/2))
+  def JHzBottom(mpvec):
+      return 0.
+  return {'JEx':JExBottom,'JEy':JEyBottom,'JEz':JEzBottom,
+        'JHx':JHxBottom,'JHy':JHyBottom,'JHz':JHzBottom}
 
 def equiv_currents(metalens):
   def JExTop(mpvec):

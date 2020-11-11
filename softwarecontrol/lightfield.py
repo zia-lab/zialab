@@ -173,6 +173,9 @@ class LField():
         self.experiment.SetValue(ExperimentSettings.FileNameGenerationBaseFileName,
                            fname)
     def set_shutter_mode(self,mode):
+        '''
+        mode can be: normal, always_closed, always_open
+        '''
         mode = mode.lower()
         self.shutter_mode = mode
         modes = {'normal':1,

@@ -35,6 +35,26 @@ def send_message(message):
     conn.getresponse()
     return None
 
+def send_image(image_fname,message=''):
+    if '.jpg' in image_fname.lower():
+        mime = 'image/jpeg'
+    elif '.png' in image_fname.lower():
+        mime = 'image/png'
+    elif '.jpeg' in image_fname.lower():
+        mime = 'image/jpeg'
+    else:
+        return "send jpg of jpeg only"
+    r = requests.post("https://api.pushover.net/1/messages.json", data = {
+      "token": "aqxvnvfq42adpf78g9pwmphse9c2un",
+      "user": "uqhx6qfvn87dtfz5dhk71hf2xh1iwu",
+      "message": message
+    },
+    files = {
+      "attachment": ("image.jpg",
+                     open(image_fname, "rb"), "image/jpeg")
+    })
+    return None
+
 def roundsigfigs(x,sig_figs):
     '''Takes a number x and rounds it to have the
     give number of significant figures.'''

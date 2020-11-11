@@ -21,7 +21,6 @@ dev = []
 global counts
 global times
 
-
 def closeDevices():
     for i in range(0, MAXDEVNUM):
         phlib.PH_CloseDevice(ctypes.c_int(i))
@@ -56,34 +55,32 @@ if len(dev) < 1:
     closeDevices()
 print("Using device #%1d" % dev[0])
 print("\nInitializing the device...")
-mode=2
+mode = 2
 phlib.PH_Initialize(ctypes.c_int(dev[0]), ctypes.c_int(mode))
 
-#print("Plot shows moving average, title shows current counts.")
+num_elements = 1000
+counts0 = [0]*num_elements
+counts1 = [0]*num_elements
+latency_time = 0.
 
-num_elements=1000
-counts0=[0]*num_elements
-counts1=[0]*num_elements
-latency_time=0.
+timefmt = "time elapsed = %.2f min"
+titlefmt = "CH0=%s | CH1=%s"
 
-timefmt="time elapsed = %.2f min"
-titlefmt="CH0=%d, CH1=%d"
-
-fig, ax = plt.subplots()
-initial_counts0,initial_counts1=getcountrates()
+fig, ax = plt.subplots(figsize=(10,5))
+initial_counts0, initial_counts1 = getcountrates()
 max_counts0, max_counts1 = initial_counts0, initial_counts1
-max_counts=max(max_counts0,max_counts1)
+max_counts = max(max_counts0,max_counts1)
 ax.set_title(titlefmt % (initial_counts0,initial_counts1),fontsize=40)
 times = list(np.linspace(0, num_elements, num_elements))
-#line1, = ax.plot(times,counts,alpha=0.4)
-line_ch0, = ax.plot(times,counts0)
-line_ch1, = ax.plot(times,counts1)
-#line5, = ax.plot([0,num_elements],[initial_counts]*2,'r--')
+line_ch0, = ax.plot(times,counts0, label='CH0')
+line_ch1, = ax.plot(times,counts1, label='CH1')
+ax.set_xlim(0,num_elements)
+plt.legend(loc='lower left')
+plt.tight_layout()
 global start_time
 start_time=time.time()
 
 annotation = ax.annotate(timefmt % (0), xy=(0.01,0.95),xycoords='axes fraction',ha='left')
-
 
 def moving_average(a, n=3) :
     ret = np.cumsum(a, dtype=float)
@@ -105,29 +102,24 @@ def animate(i):
         counts1 = counts1[-num_elements:]
     except:
         pass
-    #line1.set_ydata(counts)  # update the data
-    #counts_array=np.array(counts)
-    # do a moving average
-    #N=20
-    #avg_counts=np.convolve(counts_array, np.ones((N,))/N, mode='valid')
-    #avg_counts=list(avg_counts)
-    #avg_counts=[avg_counts[0]]*(N-1)+avg_counts
 
     line_ch0.set_ydata(counts0)
     line_ch1.set_ydata(counts1)
 
     annotation.set_text(timefmt % ((time.time()-start_time)/60.))
-    max_counts0=max(max(counts0),max_counts0)
-    max_counts1=max(max(counts1),max_counts1)
-    max_counts=max(max(counts0),max(counts1),max_counts0,max_counts1)
+    max_counts0 = max(max(counts0),max_counts0)
+    max_counts1 = max(max(counts1),max_counts1)
+    max_counts = max(max(counts0),max(counts1),max_counts0,max_counts1) # max to the all-time max
+    max_counts = max(max(counts0),max(counts1)) # max of just the current view
     ax.set_ylim(0,max_counts)
-    ax.set_xlim(0,num_elements*1.05)
-    ax.set_title(titlefmt % (counts0[-1],counts1[-1]),fontsize=40)
+    ax.set_xlim(0,num_elements*1.01)
+    cr1 = str(counts0[-1]).zfill(5)
+    cr2 = str(counts1[-1]).zfill(5)
+    ax.set_title(titlefmt % (cr1, cr2),fontsize=40)
     time.sleep(latency_time)
     #ax.annotate(current_counts,xy=(0.5,0.9),xycoords='axes fraction')
 
-
-    return line_ch0,line_ch1,annotation#,line5
+    return line_ch0, line_ch1, annotation
 
 
 ani = animation.FuncAnimation(fig, animate, np.arange(1, 200),

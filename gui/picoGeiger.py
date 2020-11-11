@@ -75,18 +75,19 @@ latency_time=0.
 timefmt="time elapsed = %.2f min"
 titlefmt="%d, max=%d, average = %d"
 
-fig, ax = plt.subplots()
+fig, ax = plt.subplots(figsize=(10,5))
 initial_counts=getcountrate(0)
 max_counts=initial_counts
 ax.set_title(titlefmt % (initial_counts,initial_counts,initial_counts),fontsize=40)
 times = list(np.linspace(0, num_elements, num_elements))
-#line1, = ax.plot(times,counts,alpha=0.4)
-line2, = ax.plot(times,avg_counts)
+line1, = ax.plot(times,counts,'b-')
+line2, = ax.plot(times,avg_counts,'b--',alpha=0.4)
 line3, = ax.plot([times[-1]],[initial_counts],'ro',ms=4)
 line4, = ax.plot([0,num_elements],[initial_counts]*2,'k--')
 #line5, = ax.plot([0,num_elements],[initial_counts]*2,'r--')
 global start_time
 start_time=time.time()
+plt.tight_layout()
 
 annotation = ax.annotate(timefmt % (0), xy=(0.01,0.95),xycoords='axes fraction',ha='left')
 
@@ -106,7 +107,7 @@ def animate(i):
         counts = counts[-num_elements:]
     except:
         pass
-    #line1.set_ydata(counts)  # update the data
+    line1.set_ydata(counts)  # update the data
     counts_array=np.array(counts)
     # do a moving average
     N=20
@@ -122,7 +123,7 @@ def animate(i):
     max_counts=max(max(avg_counts),max_counts)
     ax.set_ylim(0,max_counts)
     ax.set_xlim(0,num_elements*1.05)
-    ax.set_title(titlefmt % (current_counts,max_counts,sum(counts)/len(counts)),fontsize=40)
+    ax.set_title(titlefmt % (current_counts,max_counts,sum(counts)/len(counts)),fontsize=30)
     time.sleep(latency_time)
     #ax.annotate(current_counts,xy=(0.5,0.9),xycoords='axes fraction')
 
