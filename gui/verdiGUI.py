@@ -45,7 +45,7 @@ class VerdiGUI():
                                       text=power_str)
         self.power_display.config(font=("TkDefaultFont", 40))
         self.power_display.grid(row=1, column=0,
-                                columnspan=3, pady=(80, 10))
+                                columnspan=3, pady=(60, 10))
 
         # Entry field for changing power
         self.entry_field_left = tk.Label(self.frame, text='Set')
@@ -77,6 +77,9 @@ class VerdiGUI():
         # Shutter button
         self.toggle_btn = tk.Button(self.frame, image=self.verdi_on,
                                     command=self.toggle, bd=0, relief='flat')
+        self.refresh_btn = tk.Button(self.frame,
+                                    command=self.update,
+                                    text='update', relief='flat')
         self.shutter_state = self.get_shutter()
         # Query the current state of the shutter
         if self.shutter_state == 1:
@@ -84,11 +87,20 @@ class VerdiGUI():
         else:
             self.toggle_btn.configure(image=self.verdi_off)
         self.toggle_btn.grid(row=5,
-                             column=1,
-                             pady=(5, 20))
+                             column=1,pady=(3, 3))
+        self.refresh_btn.grid(row=6,
+                             column=1)#, pady=(5, 20))
 
         # Pack it all up
         self.frame.grid(padx=5, pady=(4, 4))
+    def update(self):
+        self.shutter_state = self.get_shutter()
+        if self.shutter_state == 1:
+            self.toggle_btn.configure(image=self.verdi_on)
+        else:
+            self.toggle_btn.configure(image=self.verdi_off)
+        power_str = '{0:.0f} mW'.format(1000 * self.get_regpower())
+        self.power_display.config(text=power_str)
 
     def change_power(self, x):
         self.verdi.set_power(0.001 * float(self.entry_field.get()))

@@ -5,7 +5,7 @@
    X The first three filters are multiplied for the combo.
    X The fourth filter is meant to represent the excitation filter.
    X Cliking on the graph annotates it with the corresponding coordinates.
-   X For adding filter to the database open and inspect Filters.ipynb.
+   X For adding filters to the database, open and inspect Filters.ipynb.
    X In all cases the polarization behaviour is suspect.
 
    This was coded in Nov 2020 by David.
@@ -13,12 +13,14 @@
 
 import tkinter as tk
 import sys
+from time import sleep
 import matplotlib, time, subprocess, sys
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.backend_bases import cursors
 from matplotlib import pyplot as plt
 import matplotlib.animation as animation
+from tkinter.filedialog import asksaveasfilename
 import numpy as np
 import pickle
 
@@ -87,22 +89,43 @@ class App(tk.Frame):
                                           self.annotate_point)
         btns2 = tk.Frame(self, bg ='black')
         btns2.pack()
-        self.minwlabel = tk.Label(btns2, text='min wave', background="black", fg='white')
+        self.minwlabel = tk.Label(btns2, text='min wave / nm', background="black", fg='white')
+        self.laserlabel = tk.Label(btns2, text='excitation / nm', background="black", fg='white')
         self.waveminbox = tk.Entry(btns2, width=4, justify='center')
         self.waveminbox.insert(0,str(self.wavemin))
-        self.maxwlabel = tk.Label(btns2, text='max wave', background="black", fg='white')
+        self.laserbox = tk.Entry(btns2, width=4, justify='center')
+        self.laserbox.insert(0,str(532))
+        self.maxwlabel = tk.Label(btns2, text='max wave / nm', background="black", fg='white')
         self.wavemaxbox = tk.Entry(btns2, width=4, justify='center')
         self.wavemaxbox.insert(0,str(self.wavemax))
         self.wavemaxbox.config(background="black", fg='white')
         self.waveminbox.config(background="black", fg='white')
+        self.laserbox.config(background="black", fg='white')
         self.minwlabel.pack(side=tk.LEFT, pady = 20)
         self.waveminbox.pack(side=tk.LEFT, pady = 20, padx = 5)
         self.maxwlabel.pack(side=tk.LEFT, pady = 20)
         self.wavemaxbox.pack(side=tk.LEFT, pady = 20, padx = 5)
+        self.laserlabel.pack(side=tk.LEFT, pady = 20)
+        self.laserbox.pack(side=tk.LEFT, pady = 20, padx = 5)
+        self.savebutton =  tk.Button(btns2, text='Save', command = self.saveit)
+        self.savebutton.pack(side=tk.LEFT, pady = 20, padx = 5)
         self.update_graph(self.filter0.get())
-
+    def saveit(self):
+        print("saving ...")
+        a = asksaveasfilename(filetypes=(("PNG Image", "*.png"),("All Files", "*.*")), defaultextension='.png', title="Save As")
+        self.fig.savefig(a)
+        self.savebutton['text'] = 'Saved!'
+        self.savebutton.update()
+        print("waiting")
+        sleep(10)
+        self.savebutton['text'] = 'Save'
+        print("finished waiting")
+        # self.fig.savefig()
     def set_lims(self):
         self.ax1.set_xlim(int(self.waveminbox.get()), int(self.wavemaxbox.get()))
+        laser_line = float(self.laserbox.get())
+        self.laserline.set_xdata([laser_line]*2)
+        self.laserline.set_ydata([1E-6,1])
         self.canvas.draw()
 
     def annotate_point(self,event):
@@ -152,15 +175,18 @@ class App(tk.Frame):
                 if filtername == '---':
                     continue
                 transmi = transmi*self.filters[filtername]['data'][:,1]
-            self.ax1.plot(waves, transmi, 'r:', lw=2,
-                            label = 'Combo')
+            if self.filter3.get() != '---':
+                self.ax1.plot(waves, transmi, 'r:', lw=2,
+                                label = 'All but last')
+            else:
+                self.ax1.plot(waves, transmi, 'r:', lw=2,
+                                label = 'All')
         if filtcounter == 1:
             num_cols = 1
         else:
             num_cols = filtcounter + 1
         if self.filter3.get() != '---':
             num_cols = num_cols + 1
-        self.fig.legend(loc='upper center', ncol = num_cols)
         scale_type = self.scale_type.get()
         self.ax1.set_xlim(int(self.waveminbox.get()), int(self.wavemaxbox.get()))
         if scale_type == 'linear':
@@ -168,8 +194,11 @@ class App(tk.Frame):
         else:
             self.ax1.set_ylim(1e-6, 2)
             self.ax1.set_yscale(scale_type)
+        laser_line = float(self.laserbox.get())
+        self.laserline, = self.ax1.plot([laser_line]*2,[1E-6,1],'w--')
         self.ax1.set_xlabel('$\lambda$/nm')
         self.ax1.set_ylabel('T')
+        self.fig.legend(loc='upper center', ncol = num_cols)
         self.canvas.draw()
 
 root = tk.Tk()
