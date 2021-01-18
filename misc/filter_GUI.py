@@ -23,29 +23,44 @@ import matplotlib.animation as animation
 from tkinter.filedialog import asksaveasfilename
 import numpy as np
 import pickle
+import os
+
+if os.path.exists('filter_GUI_state.pkl'):
+    print("Loading state ...")
+    state = pickle.load(open('filter_GUI_state.pkl','rb'))
+else:
+    state = {'filter0' : 'BLP01-325R',
+            'filter1' : '---',
+            'filter2' : '---',
+            'filter3' : '---',
+            'scale' : 'linear',
+            'min_wave' : 400,
+            'max_wave' : 1600,
+            'laser_wave' : '532'}
 
 class App(tk.Frame):
     def __init__(self, master=None, **kwargs):
+        self.state = state
         self.master = master
         self.dt = 1
         self.scale_types = ['linear','log']
         self.filters = pickle.load(open('filters.pkl','rb'))
         self.filter_names = list(sorted(self.filters.keys()))
         self.filter_names.insert(0,'---')
-        self.wavemin = 400
-        self.wavemax = 1600
+        self.wavemin = self.state['min_wave']
+        self.wavemax = self.state['max_wave']
 
         self.filter0 = tk.StringVar()
-        self.filter0.set(self.filter_names[1])
+        self.filter0.set(self.state['filter0'])
         self.filter1 = tk.StringVar()
-        self.filter1.set(self.filter_names[0])
+        self.filter1.set(self.state['filter1'])
         self.filter2 = tk.StringVar()
-        self.filter2.set(self.filter_names[0])
+        self.filter2.set(self.state['filter2'])
         self.filter3 = tk.StringVar()
-        self.filter3.set(self.filter_names[0])
+        self.filter3.set(self.state['filter3'])
         self.filtervars = [self.filter0, self.filter1, self.filter2]
         self.scale_type = tk.StringVar()
-        self.scale_type.set(self.scale_types[0])
+        self.scale_type.set(self.state['scale'])
         tk.Frame.__init__(self, master, **kwargs, bg='black')
 
         btns = tk.Frame(self, bg ='black')
@@ -94,7 +109,7 @@ class App(tk.Frame):
         self.waveminbox = tk.Entry(btns2, width=4, justify='center')
         self.waveminbox.insert(0,str(self.wavemin))
         self.laserbox = tk.Entry(btns2, width=4, justify='center')
-        self.laserbox.insert(0,str(532))
+        self.laserbox.insert(0,(self.state['laser_wave']))
         self.maxwlabel = tk.Label(btns2, text='max wave / nm', background="black", fg='white')
         self.wavemaxbox = tk.Entry(btns2, width=4, justify='center')
         self.wavemaxbox.insert(0,str(self.wavemax))
@@ -107,20 +122,33 @@ class App(tk.Frame):
         self.wavemaxbox.pack(side=tk.LEFT, pady = 20, padx = 5)
         self.laserlabel.pack(side=tk.LEFT, pady = 20)
         self.laserbox.pack(side=tk.LEFT, pady = 20, padx = 5)
-        self.savebutton =  tk.Button(btns2, text='Save', command = self.saveit)
+        self.savebutton =  tk.Button(btns2, text='Save Fig', command = self.saveit)
         self.savebutton.pack(side=tk.LEFT, pady = 20, padx = 5)
+        self.exitbutton =  tk.Button(btns2, text='Exit', command = self.quit)
+        self.exitbutton.pack(side=tk.LEFT, pady = 20, padx = 5)
         self.update_graph(self.filter0.get())
+    def quit(self):
+        self.state = {'filter0' : self.filter0.get(),
+                'filter1' : self.filter1.get(),
+                'filter2' : self.filter2.get(),
+                'filter3' : self.filter3.get(),
+                'scale' : self.scale_type.get(),
+                'min_wave' : int(self.waveminbox.get()),
+                'max_wave' : int(self.wavemaxbox.get()),
+                'laser_wave' : str(int(self.laserbox.get()))}
+        try:
+            pickle.dump(self.state, open('filter_GUI_state.pkl','wb'))
+        except:
+            print("Problem saving state of GUI.")
+            pass
+        root.destroy()
     def saveit(self):
-        print("saving ...")
         a = asksaveasfilename(filetypes=(("PNG Image", "*.png"),("All Files", "*.*")), defaultextension='.png', title="Save As")
         self.fig.savefig(a)
         self.savebutton['text'] = 'Saved!'
         self.savebutton.update()
-        print("waiting")
-        sleep(10)
-        self.savebutton['text'] = 'Save'
-        print("finished waiting")
-        # self.fig.savefig()
+        sleep(1)
+        self.savebutton['text'] = 'Save Fig'
     def set_lims(self):
         self.ax1.set_xlim(int(self.waveminbox.get()), int(self.wavemaxbox.get()))
         laser_line = float(self.laserbox.get())
