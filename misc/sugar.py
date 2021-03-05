@@ -1,6 +1,7 @@
 import numpy as np
 import http.client, urllib
 import sys
+import re
 import ssl
 import requests
 import winsound
@@ -23,6 +24,51 @@ def bell():
 def ding():
     winsound.PlaySound(os.path.join(codebase_dir,'sounds','ding.wav'),
                    winsound.SND_ASYNC)
+
+pixel_sizes = {'proem': 16, 'pixis': 20, 'pionir': 20} # in um
+
+resolutions = {
+    'proem': {
+        '150':[[10,20,25,50,100,150,200,300],
+               [0.553,0.553,0.553,0.9875,1.975,2.9625,3.95,5.925]],
+        '300':[[10,20,25,50,100,150,200,300],
+               [0.2734,0.2734,0.2734,0.4883,0.9765,1.4648,1.953,2.9295]],
+        '50':[[10,20,25,50,100,150,200,300],
+               [1.6691,1.6691,1.6691,2.9805,5.961,8.9415,11.922,17.8831]],
+    },
+    'pixis': {
+        '50':[[10,20,25,50,100,150,200,300],
+               [1.74,1.74,1.74,2.98,5.96,8.94,11.92,17.88]],
+        '150':[[10,20,25,50,100,150,200,300],
+               [0.58,0.58,0.58,0.98,1.98,2.96,3.95,5.93]],
+        '300':[[10,20,25,50,100,150,200,300],
+               [0.28,0.28,0.28,0.49,0.98,1.46,1.95,2.93]]
+    },
+    'pionir': {
+        '50':[[10,20,25,50,100,150,200,300],
+               [1.67,1.67,1.67,2.98,5.96,8.94,11.92,17.88]],
+        '150':[[10,20,25,50,100,150,200,300],
+               [0.55,0.55,0.55,0.98,1.98,2.96,3.95,5.93]],
+        '300':[[10,20,25,50,100,150,200,300],
+               [0.27,0.27,0.27,0.49,0.98,1.46,1.95,2.93]]
+    },
+}
+def slit_to_resolution(grating, slit_width, camera):
+    grating_string = re.sub("[^0-9]", "", str(grating))
+    if grating_string not in ['50','150','300']:
+        print("Unavailable grating")
+        return None
+    camera = camera.lower()
+    if 'pixis' in camera:
+        camerae = 'pixis'
+    elif 'proem' in camera:
+        camera = 'proem'
+    elif 'pionir' in camera:
+        camera = 'pionir'
+    else:
+        print("invalid camera choice")
+        return None
+    return np.interp(slit_width,resolutions[camera][grating_string][0],resolutions[camera][grating_string][1])
 
 def send_message(message):
     conn = http.client.HTTPSConnection("api.pushover.net",443)
