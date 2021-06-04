@@ -16,7 +16,7 @@ class Montana:
         # Time limit for reaching platform stability for cooldown and step-up (seconds)
         self.stability_timeout = 1800
         self.ip = ip
-        self.port = property
+        self.port = port
         self.cryo_conn = CryoComm(ip=ip, port=port)
 
     def reconnect(self):
@@ -98,6 +98,14 @@ class Montana:
             return False
         self.sample_temp = temp
         return temp
+    
+    def get_cryoptic_temperature(self):
+        try:
+            temp = float(self.cryo_conn.send_command_get_response("GUT"))
+        except:
+            return False
+        self.cryoptic_temp = temp
+        return temp 
 
     def get_alarm_state(self):
         try:
@@ -109,6 +117,9 @@ class Montana:
         return alarm_state
 
     def get_pressure(self):
+        '''
+        pressure returned in Pa
+        '''
         try:
             pressure = 0.133322*float(self.cryo_conn.send_command_get_response("GCP"))
         except:
@@ -120,11 +131,15 @@ class Montana:
         self.cryo_conn.__del__()
 
     def get_full_state(self):
+        '''
+        returns pressure/Pa, platform_temp/K, sample_temp/K, cryoptic_temp/K
+        '''
         try:
             self.get_pressure()
             self.get_platform_temperature()
             self.get_sample_temperature()
-            return self.pressure, self.platform_temp, self.sample_temp
+            self.get_cryoptic_temperature()
+            return self.pressure, self.platform_temp, self.sample_temp, self.cryoptic_temp
         except:
             print("Error getting pressure and temperatures...")
             return False
