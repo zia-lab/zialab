@@ -60,7 +60,7 @@ def slit_to_resolution(grating, slit_width, camera):
         return None
     camera = camera.lower()
     if 'pixis' in camera:
-        camerae = 'pixis'
+        camera = 'pixis'
     elif 'proem' in camera:
         camera = 'proem'
     elif 'pionir' in camera:
@@ -77,6 +77,17 @@ def send_message(message):
         "token": "aqxvnvfq42adpf78g9pwmphse9c2un",
         "user": "uqhx6qfvn87dtfz5dhk71hf2xh1iwu",
         "message": message,
+      }), { "Content-type": "application/x-www-form-urlencoded" })
+    conn.getresponse()
+    return None
+
+def send_count(count):
+    conn = http.client.HTTPSConnection("api.pushover.net",443)
+    conn.request("POST", "/1/glances.json",
+      urllib.parse.urlencode({
+        "token": "aqxvnvfq42adpf78g9pwmphse9c2un",
+        "user": "uqhx6qfvn87dtfz5dhk71hf2xh1iwu",
+        "count": count,
       }), { "Content-type": "application/x-www-form-urlencoded" })
     conn.getresponse()
     return None

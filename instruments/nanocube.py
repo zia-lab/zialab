@@ -40,7 +40,9 @@
 #
 #             https://github.com/Laukei/pyanc350
 
-import ctypes, math, os, time
+import ctypes, math, os
+from time import sleep, time
+from tqdm.notebook import tqdm
 
 anc350v3 = ctypes.windll.LoadLibrary('D:\\Google Drive\\Zia Lab\\Codebase\\zialab\\instruments\\DLLs\\anc350v3.dll')
 
@@ -183,9 +185,13 @@ saveParams.errcheck = checkError
 
 class Nanocube:
 
-    def __init__(self):
+    def __init__(self, config_params):
         self.discover()
         self.device = self.connect()
+        self.y_lim = config_params['y_lim'] # approx 5000 - thickness_of_sample
+        self.sample_thickness = config_params['sample_thickness']
+        self.rough_focus = 4720 - config_params['sample_thickness']
+        print("x-axis = horizontal axis; y-axis = optical axis; z-axis = up-down")
 
     def configureAQuadBIn(self, axisNo: int, enable: int, resolution: float) -> None:
         '''
@@ -575,11 +581,11 @@ class Nanocube:
 
     def setAmplitude(self, axisNo: int, amplitude: float) -> None:
         '''
-        Sets the amplitude parameter for an axis
+        Sets the amplitude voltage fir the given axis
 
         Args:
-            axisNo:     Axis number (0 ... 2)
-            amplitude:  Amplitude in V, internal resolution is 1 mV
+            axisNo      (int):     Axis number (0 ... 2)
+            amplitude (float):  Amplitude in V, internal resolution is 1 mV
         Returns:
             None
         '''
@@ -664,20 +670,21 @@ class Nanocube:
         '''
         startAutoMove(self.device, axisNo, enable, relative)
 
-    def startContinuousMove(self, axisNo: int, start: int, backward:int) -> None:
-        '''
-        Starts or stops continous motion in the given direction.
-        Other kinds of motions are stopped.
-
-        Args:
-            axisNo:     Axis number (0 ... 2)
-            start:      Start (1) or stop (0) motion
-            backward:   If the move direction is forward (0) or backward (1)
-
-        Returns:
-            None
-        '''
-        startContinousMove(self.device, axisNo, start, backward)
+    # no real reason to ever use this
+    # def startContinuousMove(self, axisNo: int, start: int, backward:int) -> None:
+    #     '''
+    #     Starts or stops continous motion in the given direction.
+    #     Other kinds of motions are stopped.
+    #
+    #     Args:
+    #         axisNo:     Axis number (0 ... 2)
+    #         start:      Start (1) or stop (0) motion
+    #         backward:   If the move direction is forward (0) or backward (1)
+    #
+    #     Returns:
+    #         None
+    #     '''
+    #     startContinousMove(self.device, axisNo, start, backward)
 
     def startSingleStep(self, axisNo: int, backward: int) -> None:
         '''
@@ -695,10 +702,12 @@ class Nanocube:
                axisNo: int,
                target_position: float,
                target_range: float = 0.1,
-               frequency: float = 50.,
-               amplitude: float = 30.) -> None:
+               frequency: float = 400.,
+               amplitude: float = 45.,
+               block: bool = False) -> None:
         '''
         Enable closed-loop motion after settting target position, and target range.
+        If the axis is the y-axis, the target has to be <= y_lim
 
         Args:
             axisNo:             Axis number (0 ... 2)
@@ -706,15 +715,51 @@ class Nanocube:
             target_range:       Range within which target is considered as reached.
             frequency:          Frequency of operation [Hz]
             amplitude:          Amplitude of operation [V]
+            block:              If function blocks until target is reached.
         Returns:
             None
         '''
+        if axisNo == 1:
+            assert target_position <= self.y_lim, 'y out of range'
         self.setFrequency(axisNo,frequency)
         self.setAmplitude(axisNo,amplitude)
         self.setAxisOutput(axisNo, 1, 1)
         self.setTargetPosition(axisNo, target_position)
         self.setTargetRange(axisNo, target_range)
         self.startAutoMove(axisNo, 1, 0)
+        sleep(0.5)
+        stuck_gap = 50.
+        if block:
+            bar_fmt = '{percentage:.1f}%{bar}({n:.1f}/{total:.1f}) [{elapsed}<{remaining}]'
+            current_position = self.getPosition(axisNo)
+            gap = abs(current_position-target_position)
+            pbar = tqdm(total = gap, bar_format = bar_fmt)
+            positions = [current_position]
+            times = [time()]
+            stuck = False
+            while (not self.getAxisStatus(axisNo)['target']):
+                current_position = self.getPosition(axisNo)
+                positions.append(current_position)
+                times.append(time())
+                dif = abs(target_position - current_position)
+                newgap = gap - dif
+                pbar.n = newgap
+                pbar.display()
+                if (len(positions) > 10) & (dif < stuck_gap) & (not stuck):
+                    stuck = True
+                    print("Stuck?...")
+                    stuck_time = time()
+                if stuck:
+                    ds = abs(positions[-10] - positions[-1])
+                    dt = abs(times[-10] - times[-1])
+                    speed =  ds / dt
+                    time_stuck = time() - stuck_time
+                    if (time_stuck > 60) and speed < 1:
+                        print("Stuck, stopping Automove ...")
+                        self.startAutoMove(axisNo, 0, 0)
+                        break
+                sleep(0.05)
+            pbar.close()
 
     def disengange_all(self):
         '''
@@ -724,90 +769,216 @@ class Nanocube:
         self.setAxisOutput(1,0,1)
         self.setAxisOutput(2,0,1)
 
+    def voyageto(self, axisNo, target_position, target_precision=0.5, verbose=False):
+        '''
+        Moves the given axis to the given target position within
+        a given precision.
+        If the target position is at a larger distance than rough_precision
+        the target is initially approached with autoMove,
+        once the target is reached within this range, single steps are used
+        to get within 3 um,
+        after this the DC bias is used to fine tune the position to within
+        a precision of target_precision.
 
-    def travelto(self, axisNo, target_position, target_precision = 0.5):
-        big_range = 3000./2. # distance to target that enforces continous motion
-        mid_range = 20./2. # distance to target that enforces single steps
-        fine_range = 5./2. # distance to target that hones in using DC voltage
-        max_voltage = 60 # this is the maximum voltage that can be set
-        dc_voltage = 0. # this is the starting voltage for fine stepping
+        Parameters:
+
+        axisNo              (int): 0 -> x, 1-> y, 2-> z
+        target_position   (float): given in um
+        target_precision  (float): given in um
+        verbose            (bool): if verbose prints or not
+
+        Returns:
+
+        trajectory (list): [positions during mid and fine tuning]
+
+        If at any point the y-axis goes beyond its safe range
+        the axis is disengaged.
+        If at any time the function is interrupted
+        the axis is disengaged.
+        '''
+        rough_precision = 50 # how close to target with automoving
+        mid_range = 3.0 # distance to target for single step approach
         frequency_in_Hz = 200
-        min_coarse = 40 # for big stepping voltage shan't be smaller than this
-        dc_delta = 1 # initial step size for finding fine step voltage
-        coarse_amplitude = 50.
-        coarse_delta = 1 # amount by which the continouse motion is increased/decreased
-        current_position = self.getPosition(axisNo)
-        delta = self.getPosition(axisNo) - target_position
-        previous_position = current_position
+        mid_amplitude = 30. # voltage amplitude for mid steps
+        dc_voltage = 30. # dc voltage for fine tune
+
+        # get close using autoMove
+        print("automoving ...")
+        self.moveto(axisNo, target_position, rough_precision, block = True)
+        self.startAutoMove(axisNo, 0, 0)
         self.setAxisOutput(axisNo, 1, True)
         self.setFrequency(axisNo, frequency_in_Hz)
-        start_time = time.time()
+        self.setDcVoltage(axisNo, dc_voltage)
         trajectory = []
 
-        while abs(delta) >= target_precision:
-            current_position = self.getPosition(axisNo)
-            trajectory.append([time.time()-start_time, current_position])
-            if ((-fine_range) < (current_position-target_position) < 0) : # target must be approached from below
-                print("fine stepping...", end='|')
-                if dc_voltage >= max_voltage:
-                    dc_voltage = 0
-                    print("mid stepping out of snag...", end='|')
-                    if current_position > target_position:
-                        direction = 1 # backward
-                    else:
-                        direction = 0 # forward
-                    self.setAmplitude(axisNo, coarse_amplitude)
-                    self.startSingleStep(axisNo,direction)
-                    if (target_position-current_position)*(target_position-self.getPosition(axisNo)) < 0:
-                        coarse_amplitude = coarse_amplitude - coarse_delta
-                        if coarse_amplitude < min_coarse:
-                            coarse_amplitude = min_coarse
-                self.setDcVoltage(axisNo,dc_voltage)
-                # fine tuning mode
-                if (previous_position - target_position)*(current_position - target_position) < 0:
-                    dc_delta = dc_delta/2.
-                if current_position > target_position:
-                    dc_voltage = abs(dc_voltage - dc_delta)
-                    self.setDcVoltage(axisNo, dc_voltage)
-                    # print("V="+str(dc_voltage))
-                else:
-                    dc_voltage = dc_voltage + dc_delta
-                    self.setDcVoltage(axisNo, dc_voltage)
-                    # print("V="+str(dc_voltage))
-            elif abs(current_position-target_position) <= mid_range:
-                print("mid stepping...", end='|')
+        try:
+            # get closer using single steps
+            print("mid stepping ...")
+            gap = abs(self.getPosition(axisNo) - target_position)
+            newgap = gap
+            bar_fmt = '{percentage:.1f}%{bar}({n:.1f}/{total:.1f}) [{elapsed}<{remaining}]'
+            pbar = tqdm(total = gap, bar_format = bar_fmt)
+            while newgap >= mid_range:
+                current_position = self.getPosition(axisNo)
+                newgap = abs(current_position - target_position)
+                pbar.n = gap - newgap
+                pbar.display()
+                if axisNo == 1:
+                    if current_position > self.y_lim:
+                        raise Exception("reached y-axis limit")
+                trajectory.append(current_position)
                 if current_position > target_position:
                     direction = 1 # backward
                 else:
                     direction = 0 # forward
-                self.setAmplitude(axisNo, coarse_amplitude)
-                self.startSingleStep(axisNo,direction)
-                if (target_position-current_position)*(target_position-self.getPosition(axisNo)) < 0:
-                    coarse_amplitude = coarse_amplitude - coarse_delta
-                    if coarse_amplitude < min_coarse:
-                        coarse_amplitude = min_coarse
-            elif abs(current_position-target_position) <= big_range:
-                print("big stepping...", end='|')
-                # coarse continuous motion
-                self.setAmplitude(axisNo, coarse_amplitude)
+                self.setAmplitude(axisNo, mid_amplitude)
+                self.startSingleStep(axisNo, direction)
+                sleep(0.05)
+
+            print("fine tuning ...")
+            # fine tune the DC voltage, and use single steps here and there
+            while abs(self.getPosition(axisNo) - target_position) >= target_precision:
+                current_position = self.getPosition(axisNo)
+                newgap = abs(current_position - target_position)
+                pbar.n = gap - newgap
+                pbar.display()
+                if axisNo == 1:
+                    if current_position > self.y_lim:
+                        raise Exception("reached y-axis limit")
+                if verbose:
+                    print(".", end='')
+                trajectory.append(current_position)
                 if current_position > target_position:
-                    direction = 1 # backward
+                    dc_voltage = dc_voltage - 1
                 else:
-                    direction = 0 # forward
-                self.startContinuousMove(axisNo,1,direction)
-                while (target_position-current_position)*(target_position-self.getPosition(axisNo)) > 0:
-                    pass
-                else:
-                    coarse_amplitude = coarse_amplitude - coarse_delta
-                    if coarse_amplitude < min_coarse:
-                        coarse_amplitude = min_coarse
-                self.startContinuousMove(axisNo,0,direction)
-            previous_position = current_position
-            delta = current_position - target_position
-            time.sleep(0.1)
-        else:
-            print("Target reached!")
-        if abs(self.getPosition(axisNo) - target_position) > target_precision:
-            print("Repeating...")
-            self.travelto(axisNo, target_position)
+                    dc_voltage = dc_voltage + 1
+                if dc_voltage < 0:
+                    dc_voltage = 30
+                    print("leaping")
+                    self.startSingleStep(axisNo, 1)
+                if dc_voltage > 60:
+                    dc_voltage = 30
+                    print("leaping")
+                    self.startSingleStep(axisNo, 0)
+                self.setDcVoltage(axisNo, dc_voltage)
+                sleep(0.05)
+            pbar.close()
+        except Exception as e:
+            print(e)
+            self.setAxisOutput(axisNo,0,1)
+            return trajectory
         return trajectory
+
+    # def travelto(self, axisNo, target_position, target_precision = 0.5):
+    #     '''
+    #     Moves the given axis to the given target position within
+    #     a given precision by using a mixture of continous motions
+    #     and single steps. Fine-stepping is regulated by changing
+    #     the single-step voltage accordingly.
+    #
+    #     Parameters:
+    #
+    #     axisNo              (int): 0 -> x, 1-> y, 2-> z
+    #     target_position   (float): given in um
+    #     target_precision  (float): given in um
+    #
+    #     Retruns:
+    #
+    #     trajectory (list): [[step_idx_0, position_0] ... []]
+    #
+    #     If at any point the axis goes beyond its safe range
+    #     motion is immediately stopped.
+    #     If at any time the function is interrupted
+    #     the axis is stopped.
+    #     '''
+    #     big_range = 3000./2. # distance to target that enforces continous motion
+    #     mid_range = 20./2. # distance to target that enforces single steps
+    #     fine_range = 5./2. # distance to target that hones in using DC voltage
+    #     max_voltage = 60 # this is the maximum voltage that can be set
+    #     dc_voltage = 0. # this is the starting voltage for fine stepping
+    #     frequency_in_Hz = 200
+    #     min_coarse = 20 # for big stepping voltage shan't be smaller than this
+    #     dc_delta = 1 # initial step size for finding fine step voltage
+    #     coarse_amplitude = 50.
+    #     coarse_delta = 1 # amount by which the continouse motion is increased/decreased
+    #     current_position = self.getPosition(axisNo)
+    #     delta = self.getPosition(axisNo) - target_position
+    #     previous_position = current_position
+    #     self.setAxisOutput(axisNo, 1, True)
+    #     self.setFrequency(axisNo, frequency_in_Hz)
+    #     start_time = time.time()
+    #     trajectory = []
+    #     try:
+    #         while abs(delta) >= target_precision:
+    #             current_position = self.getPosition(axisNo)
+    #             trajectory.append([time.time()-start_time, current_position])
+    #             if ((-fine_range) < (current_position-target_position) < 0) : # target must be approached from below
+    #                 print("fine stepping...", end='|')
+    #                 if dc_voltage >= max_voltage:
+    #                     dc_voltage = 0
+    #                     print("mid stepping out of snag...", end='|')
+    #                     if current_position > target_position:
+    #                         direction = 1 # backward
+    #                     else:
+    #                         direction = 0 # forward
+    #                     self.setAmplitude(axisNo, coarse_amplitude)
+    #                     self.startSingleStep(axisNo,direction)
+    #                     if (target_position-current_position)*(target_position-self.getPosition(axisNo)) < 0:
+    #                         coarse_amplitude = coarse_amplitude - coarse_delta
+    #                         if coarse_amplitude < min_coarse:
+    #                             coarse_amplitude = min_coarse
+    #                 self.setDcVoltage(axisNo,dc_voltage)
+    #                 # fine tuning mode
+    #                 if (previous_position - target_position)*(current_position - target_position) < 0:
+    #                     dc_delta = dc_delta/2.
+    #                 if current_position > target_position:
+    #                     dc_voltage = abs(dc_voltage - dc_delta)
+    #                     self.setDcVoltage(axisNo, dc_voltage)
+    #                     # print("V="+str(dc_voltage))
+    #                 else:
+    #                     dc_voltage = dc_voltage + dc_delta
+    #                     self.setDcVoltage(axisNo, dc_voltage)
+    #                     # print("V="+str(dc_voltage))
+    #             elif abs(current_position-target_position) <= mid_range:
+    #                 print("mid stepping...", end='|')
+    #                 if current_position > target_position:
+    #                     direction = 1 # backward
+    #                 else:
+    #                     direction = 0 # forward
+    #                 self.setAmplitude(axisNo, coarse_amplitude)
+    #                 self.startSingleStep(axisNo,direction)
+    #                 if (target_position-current_position)*(target_position-self.getPosition(axisNo)) < 0:
+    #                     coarse_amplitude = coarse_amplitude - coarse_delta
+    #                     if coarse_amplitude < min_coarse:
+    #                         coarse_amplitude = min_coarse
+    #             elif abs(current_position-target_position) <= big_range:
+    #                 # if very far away, approach target with
+    #                 # a continous move using the coarse_amplitied voltage
+    #                 print("big stepping...", end='|')
+    #                 self.setAmplitude(axisNo, coarse_amplitude)
+    #                 if current_position > target_position:
+    #                     direction = 1 # backward
+    #                 else:
+    #                     direction = 0 # forward
+    #                 self.startContinuousMove(axisNo,1,direction)
+    #                 while (target_position-current_position)*(target_position-self.getPosition(axisNo)) > 0:
+    #                     # keep moving until the target has been crossed
+    #                     pass
+    #                 else:
+    #                     coarse_amplitude = coarse_amplitude - coarse_delta
+    #                     if coarse_amplitude < min_coarse:
+    #                         coarse_amplitude = min_coarse
+    #                 self.startContinuousMove(axisNo,0,direction)
+    #             previous_position = current_position
+    #             delta = current_position - target_position
+    #             time.sleep(0.1)
+    #         else:
+    #             print("Target reached!")
+    #         if abs(self.getPosition(axisNo) - target_position) > target_precision:
+    #             print("Repeating...")
+    #             self.travelto(axisNo, target_position)
+    #     except:
+    #         print("stopping the axis")
+    #         self.startContinuousMove(axisNo,0,direction)
+    #         return trajectory
+    #     return trajectory

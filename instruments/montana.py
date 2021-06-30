@@ -98,14 +98,14 @@ class Montana:
             return False
         self.sample_temp = temp
         return temp
-    
+
     def get_cryoptic_temperature(self):
         try:
             temp = float(self.cryo_conn.send_command_get_response("GUT"))
         except:
             return False
         self.cryoptic_temp = temp
-        return temp 
+        return temp
 
     def get_alarm_state(self):
         try:

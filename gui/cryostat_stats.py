@@ -7,8 +7,45 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui, QtCore
 from pyqtgraph.Point import Point
 import sqlite3 as sl
-import time
+import time, sys
 from datetime import datetime
+import os
+import http.client, urllib
+
+sys.path.append("..")
+from instruments import montana2
+
+going_down = True
+
+def send_message(message):
+    conn = http.client.HTTPSConnection("api.pushover.net",443)
+    conn.request("POST", "/1/messages.json",
+      urllib.parse.urlencode({
+        "token": "aqxvnvfq42adpf78g9pwmphse9c2un",
+        "user": "uqhx6qfvn87dtfz5dhk71hf2xh1iwu",
+        "message": message,
+      }), { "Content-type": "application/x-www-form-urlencoded" })
+    conn.getresponse()
+    return None
+
+def send_count(count):
+    conn = http.client.HTTPSConnection("api.pushover.net",443)
+    conn.request("POST", "/1/glances.json",
+      urllib.parse.urlencode({
+        "token": "aqxvnvfq42adpf78g9pwmphse9c2un",
+        "user": "uqhx6qfvn87dtfz5dhk71hf2xh1iwu",
+        "count": count,
+      }), { "Content-type": "application/x-www-form-urlencoded" })
+    conn.getresponse()
+    return None
+
+send_updates = True
+last_sent_temp = 0
+cryostation = montana2.Montana()
+sql = 'INSERT INTO MONTANA (time, chamberPressure, platformTemp, sampleTemp, objTemp) values(?, ?, ?, ?, ?)'
+
+milestone_keys = list(range(20,300,20)) + [290, 295]
+milestones = dict(zip(milestone_keys, [False]*len(milestone_keys)))
 
 pg.setConfigOption('background', 'k')
 pg.setConfigOption('foreground', 'w')
@@ -18,8 +55,39 @@ def get_data():
     return [[d[idx] for d in data] for idx in [0,1,2,3,4]]
 
 dbase = 'C:/Users/lab_pc_cryo/Desktop/cryodbase.db'
-con = sl.connect(dbase, uri=True)
+
+generate = False
+if not os.path.exists(dbase):
+    generate = True
+
+con = sl.connect(dbase)
+
+if generate:
+    con.execute("""
+        CREATE TABLE MONTANA (
+            time REAL,
+            chamberPressure REAL,
+            platformTemp REAL,
+            sampleTemp REAL,
+            objTemp Real
+        );
+    """)
 data = con.execute("SELECT * FROM MONTANA WHERE time > 0").fetchall()
+
+if len(data) == 0:
+    new_state = cryostation.get_full_state()
+    new_time = time.time()
+    state = [new_time, *new_state]
+    con.execute(sql, state)
+    data = [state]
+
+last_sample_temp = data[-1][-2]
+for milestone in milestones:
+    if not going_down:
+        milestones[milestone] = (last_sample_temp >= milestone)
+    else:
+        milestones[milestone] = (last_sample_temp <= milestone)
+print(milestones)
 
 #generate layout
 app = QtGui.QApplication([])
@@ -70,11 +138,39 @@ selector.setContentsMargins(*(marge,0,marge,marge))
 def update():
     region.setZValue(10)
     minX, maxX = region.getRegion()
+    maxX = min(maxX,0)
     for aplot in [sample_temp, chamber_pressure, obj_temp, platform_temp]:
         aplot.setXRange(minX, maxX, padding=0)
+    back_then = datetime.fromtimestamp(time.time() + minX*3600)
+    back_then_str = back_then.strftime("%H:%M:%S")
+    selector.setTitle('Sample/K | %s' % back_then_str)
 
 def updateData():
     global data
+    global last_sent_temp
+    new_state = cryostation.get_full_state()
+    new_time = time.time()
+    state = (new_time, *new_state)
+    last_temp = new_state[-2]
+    for milestone in milestones:
+        if not going_down:
+            going_on = ((last_temp > milestone) and (not milestones[milestone]))
+        else:
+            going_on = ((last_temp < milestone) and (not milestones[milestone]))
+        if going_on:
+            # send message
+            send_message('%d K reached' % milestone)
+            # change to
+            milestones[milestone] = True
+            break
+    if send_updates:
+        if int(last_temp) % 5 == 0:
+            if int(last_temp) != last_sent_temp:
+                send_count(int(last_temp))
+                print("update sent at %d K" %(int(last_temp)))
+                last_sent_temp = int(last_temp)
+    con.execute(sql, state)
+    con.commit()
     last_time = data[-1][0]
     data.extend(con.execute("SELECT * FROM MONTANA WHERE time > %d" % last_time).fetchall())
     times, pressures, plat_temps, sample_temps, obj_temps = get_data()
@@ -99,7 +195,7 @@ def updateData():
 
 t = QtCore.QTimer()
 t.timeout.connect(updateData)
-t.start(100)
+t.start(300)
 
 region.sigRegionChanged.connect(update)
 
@@ -107,7 +203,7 @@ def updateRegion(window, viewRange):
     rgn = viewRange[0]
     region.setRegion(rgn)
 
-sample_temp.sigRangeChanged.connect(updateRegion)
+# sample_temp.sigRangeChanged.connect(updateRegion)
 region.setRegion([times[0] + (times[-1]-times[0])*0.1, times[-1]])
 
 #cross hairs
