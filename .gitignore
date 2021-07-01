@@ -2,6 +2,7 @@
 Icon
 .DS_Store
 .idea*/
+dave.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

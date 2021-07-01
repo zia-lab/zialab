@@ -1,29 +1,62 @@
 import numpy as np
 import http.client, urllib
 import sys
+import os
+platform = sys.platform
 import re
 import ssl
 import requests
-import winsound
 import time, os
+if platform == 'win32':
+    import winsound
+else:
+    import pygame
+
+pushover = False
+
+try:
+    from dave import secrets
+    pushover_user = secrets['pushover_user']
+    pushover_token = secrets['pushover_token']
+    pushover = True
+except:
+    print("Ask David about this.")
+    pass
 
 ssl.match_hostname = lambda cert, hostname: True
-codebase_dir = 'D:/Google Drive/Zia Lab/Codebase/'
-log_dir = 'D:/Google Drive/Zia Lab/Log'
-data_dir = os.path.join(log_dir,'Data')
-graphs_dir = os.path.join(log_dir,'Graphs')
-platform = sys.platform
+if platform == 'win32':
+    codebase_dir = 'D:/Google Drive/Zia Lab/Codebase/'
+    log_dir = 'D:/Google Drive/Zia Lab/Log'
+    data_dir = os.path.join(log_dir,'Data')
+    graphs_dir = os.path.join(log_dir,'Graphs')
+else:
+    codebase_dir = '/Users/juan/Google Drive/Zia Lab/Codebase/'
+    log_dir = '/Users/juan/Google Drive/Zia Lab/Log'
+    data_dir = os.path.join(log_dir,'Data')
+    graphs_dir = os.path.join(log_dir,'Graphs')
 
 def wait(wait_duration=0.1):
     time.sleep(wait_duration)
 
 def bell():
-    winsound.PlaySound(os.path.join(codebase_dir,'sounds','bell.wav'),
+    if platform == 'win32':
+        winsound.PlaySound(os.path.join(codebase_dir,'sounds','bell.wav'),
                    winsound.SND_ASYNC)
+    else:
+        pygame.init()
+        pygame.mixer.init()
+        sounda = pygame.mixer.Sound(os.path.join(codebase_dir,'sounds','bell.wav'))
+        sounda.play()
 
 def ding():
-    winsound.PlaySound(os.path.join(codebase_dir,'sounds','ding.wav'),
-                   winsound.SND_ASYNC)
+    if platform == 'win32':
+        winsound.PlaySound(os.path.join(codebase_dir,'sounds','ding.wav'),
+                       winsound.SND_ASYNC)
+    else:
+        pygame.init()
+        pygame.mixer.init()
+        sounda = pygame.mixer.Sound(os.path.join(codebase_dir,'sounds','ding.wav'))
+        sounda.play()
 
 pixel_sizes = {'proem': 16, 'pixis': 20, 'pionir': 20} # in um
 
@@ -70,47 +103,48 @@ def slit_to_resolution(grating, slit_width, camera):
         return None
     return np.interp(slit_width,resolutions[camera][grating_string][0],resolutions[camera][grating_string][1])
 
-def send_message(message):
-    conn = http.client.HTTPSConnection("api.pushover.net",443)
-    conn.request("POST", "/1/messages.json",
-      urllib.parse.urlencode({
-        "token": "aqxvnvfq42adpf78g9pwmphse9c2un",
-        "user": "uqhx6qfvn87dtfz5dhk71hf2xh1iwu",
-        "message": message,
-      }), { "Content-type": "application/x-www-form-urlencoded" })
-    conn.getresponse()
-    return None
+if pushover:
+    def send_message(message):
+        conn = http.client.HTTPSConnection("api.pushover.net",443)
+        conn.request("POST", "/1/messages.json",
+          urllib.parse.urlencode({
+            "token": pushover_token,
+            "user": pushover_user,
+            "message": message,
+          }), { "Content-type": "application/x-www-form-urlencoded" })
+        conn.getresponse()
+        return None
 
-def send_count(count):
-    conn = http.client.HTTPSConnection("api.pushover.net",443)
-    conn.request("POST", "/1/glances.json",
-      urllib.parse.urlencode({
-        "token": "aqxvnvfq42adpf78g9pwmphse9c2un",
-        "user": "uqhx6qfvn87dtfz5dhk71hf2xh1iwu",
-        "count": count,
-      }), { "Content-type": "application/x-www-form-urlencoded" })
-    conn.getresponse()
-    return None
+    def send_count(count):
+        conn = http.client.HTTPSConnection("api.pushover.net",443)
+        conn.request("POST", "/1/glances.json",
+          urllib.parse.urlencode({
+            "token": pushover_token,
+            "user": pushover_user,
+            "count": count,
+          }), { "Content-type": "application/x-www-form-urlencoded" })
+        conn.getresponse()
+        return None
 
-def send_image(image_fname,message=''):
-    if '.jpg' in image_fname.lower():
-        mime = 'image/jpeg'
-    elif '.png' in image_fname.lower():
-        mime = 'image/png'
-    elif '.jpeg' in image_fname.lower():
-        mime = 'image/jpeg'
-    else:
-        return "send jpg of jpeg only"
-    r = requests.post("https://api.pushover.net/1/messages.json", data = {
-      "token": "aqxvnvfq42adpf78g9pwmphse9c2un",
-      "user": "uqhx6qfvn87dtfz5dhk71hf2xh1iwu",
-      "message": message
-    },
-    files = {
-      "attachment": ("image.jpg",
-                     open(image_fname, "rb"), "image/jpeg")
-    })
-    return None
+    def send_image(image_fname,message=''):
+        if '.jpg' in image_fname.lower():
+            mime = 'image/jpeg'
+        elif '.png' in image_fname.lower():
+            mime = 'image/png'
+        elif '.jpeg' in image_fname.lower():
+            mime = 'image/jpeg'
+        else:
+            return "send jpg of jpeg only"
+        r = requests.post("https://api.pushover.net/1/messages.json", data = {
+          "token": pushover_token,
+          "user": pushover_user,
+          "message": message
+        },
+        files = {
+          "attachment": ("image.jpg",
+                         open(image_fname, "rb"), "image/jpeg")
+        })
+        return None
 
 def roundsigfigs(x,sig_figs):
     '''Takes a number x and rounds it to have the
