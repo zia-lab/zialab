@@ -103,3 +103,4 @@ ENV/
 # mkdocs documentation
 /site
 .DS_Store
+*.ini

@@ -12,6 +12,7 @@ weather_csv = '/Users/juan/Downloads/Weather Lab - Lab.csv'
 dates = list(map(lambda x: datetime.strptime(x, '%m/%d/%y %H:%M').timestamp(),
             np.genfromtxt(weather_csv, delimiter=',',
             skip_header=1, usecols=0, dtype=(str))))
+# np.savetxt('/Users/juan/Desktop/weathertimes.csv',dates,delimiter=',')
 temps = np.genfromtxt(weather_csv,
             delimiter=',',skip_header=1,usecols=1)
 humes = np.genfromtxt(weather_csv,
