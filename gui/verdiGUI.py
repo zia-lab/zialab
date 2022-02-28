@@ -13,26 +13,26 @@ class VerdiGUI():
     text_color = 'black'
 
     def __init__(self, verbose=True):
-        self.IP = '10.9.93.186'
+        self.IP = '172.18.129.48'
         self.verbose = verbose
         self.platform = sys.platform
         self.verdi = RemoteVerdi(IP=self.IP)
         self.root = tk.Tk()
         self.root.title("Verdi")
 #        self.root.geometry("%dx%d" % (self.width, self.height))
-        self.verdi_on = tk.PhotoImage(file='verdi_on.gif')
-        self.verdi_off = tk.PhotoImage(file='verdi_off.gif')
+        self.verdi_on = tk.PhotoImage(file='./verdi_on.gif')
+        self.verdi_off = tk.PhotoImage(file='./verdi_off.gif')
         self.root.resizable(False, False)
         self.root.configure(background=self.bg_color)
         self.frame = tk.Frame()
 
         # Background image
         if (sys.platform == 'win32'):
-            self.top_image = tk.PhotoImage(file='verdi_background_win.gif')
+            self.top_image = tk.PhotoImage(file='./verdi_background_win.gif')
         elif (self.platform == 'darwin'):
-            self.top_image = tk.PhotoImage(file='verdi_background_darwin.gif')
+            self.top_image = tk.PhotoImage(file='./verdi_background_darwin.gif')
         elif (self.platform == 'linux'):
-            self.top_image = tk.PhotoImage(file='verdi_background_linux.gif')
+            self.top_image = tk.PhotoImage(file='./verdi_background_linux.gif')
         self.top_label = tk.Label(self.frame,
                                   image=self.top_image,
                                   borderwidth=0,
