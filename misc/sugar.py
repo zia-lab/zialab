@@ -7,6 +7,7 @@ import re
 import ssl
 import requests
 import time, os
+
 if platform == 'win32':
     import winsound
 else:
@@ -15,7 +16,7 @@ else:
 pushover = False
 
 try:
-    from dave import secrets
+    from .dave import secrets
     pushover_user = secrets['pushover_user']
     pushover_token = secrets['pushover_token']
     pushover = True
