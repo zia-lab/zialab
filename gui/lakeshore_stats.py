@@ -148,6 +148,12 @@ def updateData():
     else:
         selector.setXRange(-rangeMin.value(),max(times), padding=0)
     selector.enableAutoRange(axis='y')
+    array_temps = np.array(sample_temps)
+    minX, maxX = region.getRegion()
+    array_temps = array_temps[(times >= minX) & (times <= maxX)]
+    low_temp = np.min(array_temps)
+    high_temp = np.max(array_temps)
+    sample_temp.setYRange(low_temp,high_temp)
     for widgy, datum in zip(plot_widgets, datas):
         widgy.setData(y=datum, x=times)
     timestamp = datetime.fromtimestamp(now)
