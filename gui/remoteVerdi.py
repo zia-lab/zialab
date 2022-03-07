@@ -9,7 +9,7 @@ class RemoteVerdi():
     '''
     Use Verdi through the Rapsberry Pi that is attached to it.
     '''
-    def __init__(self,IP='10.9.93.186'):
+    def __init__(self,IP='172.18.129.48'):
         self.IP = IP
     def set_shutter(self,shut):
         '''

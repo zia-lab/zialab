@@ -13,7 +13,8 @@ from ..misc.sugar import wav2RGB
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 import re
 
-zlab_dir = 'D:/Google Drive/Zia Lab/'
+zlab_dir = 'D:/ZiaLab/'
+log_dir = '\\\\files.brown.edu/home/jlizaraz/ZiaLab/Log/'
 
 platform = sys.platform
 if platform == 'win32':
@@ -52,7 +53,6 @@ trigger_responses = {
     'Expose During Trigger Pulse': 4}
 allowed_storage_shift_rates = [0.6, 0.45, 2., 5] # in micro_seconds
 codebase_dir = os.path.join(zlab_dir,'Codebase')
-log_dir = os.path.join(zlab_dir,'Log')
 data_dir = os.path.join(log_dir,'Data')
 graphs_dir = os.path.join(log_dir,'Graphs')
 platform = sys.platform
@@ -79,6 +79,13 @@ class LField():
         self.application = self.automat.LightFieldApplication
         self.experiment = self.application.Experiment
         self.lf_dir = self.experiment.GetValue(ExperimentSettings.FileNameGenerationDirectory)
+    def pref_naming_settings(self):
+        self.experiment.SetValue(ExperimentSettings.FileNameGenerationAttachDate,
+                    False)
+        self.experiment.SetValue(ExperimentSettings.FileNameGenerationAttachTime,
+                            False)
+        self.experiment.SetValue(ExperimentSettings.FileNameGenerationSaveRawData,
+                            False)
     def find_setting(self,search):
         '''
         Search for a setting in the Lightfield API.
