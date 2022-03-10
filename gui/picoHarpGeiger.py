@@ -9,6 +9,8 @@ import matplotlib.animation as animation
 import numpy as np
 import ctypes
 import statistics
+import pickle
+from tkinter.filedialog import asksaveasfile
 
 def getcounts():
     cr0, cr1 = getcountrate(0), getcountrate(1)
@@ -97,8 +99,21 @@ class App(tk.Frame):
 
         self.btn = tk.Button(btns, text='Start', command=self.on_click, width=15)
         self.btn.pack(side=tk.LEFT, padx=5)
+        self.btn2 = tk.Button(btns, text='To CSV', command=self.save_to_csv, width=15)
+        self.btn2.pack(side=tk.LEFT, padx=5)
 
         self.start()
+
+    def save_to_csv(self):
+        # times in the first column
+        # ch0 in the second one
+        # ch1 in the third one
+        save_path = asksaveasfile()
+        export = [self.times,
+                 self.ch0counts,
+                 self.ch1counts]
+        export = np.array(export).T
+        np.savetxt(save_path, export, delimiter=',')
 
     def linemngr(self):
         if self.varCH0.get():

@@ -5,7 +5,7 @@ import os
 platform = sys.platform
 import re
 import ssl
-import requests
+import requests, io, json
 import time, os
 
 if platform == 'win32':
@@ -14,14 +14,17 @@ else:
     import pygame
 
 pushover = False
+slackit = False
 
 try:
     from .dave import secrets
     pushover_user = secrets['pushover_user']
     pushover_token = secrets['pushover_token']
+    slack_token = secrets['slack_token']
+    slackit = True
     pushover = True
 except:
-    print("Ask David about this.")
+    print("Ask David about secrets.")
     pass
 
 ssl.match_hostname = lambda cert, hostname: True
@@ -168,6 +171,32 @@ if pushover:
                          open(image_fname, "rb"), "image/jpeg")
         })
         return None
+
+if slackit:
+    default_slack_channel = '#datahose'
+    slack_icon_emoji = ':see_no_evil:'
+    slack_user_name = 'labbot'
+    def post_message_to_slack(text, blocks = None, slack_channel = default_slack_channel):
+        return requests.post('https://slack.com/api/chat.postMessage', {
+            'token': slack_token,
+            'channel': slack_channel,
+            'text': text,
+            'icon_emoji': slack_icon_emoji,
+            'username': slack_user_name,
+            'blocks': json.dumps(blocks) if blocks else None
+        }).json()
+    def post_file_to_slack(text, file_name, file_bytes, file_type=None, title=None, slack_channel=default_slack_channel):
+        return requests.post(
+        'https://slack.com/api/files.upload',
+        {
+            'token': slack_token,
+            'filename': file_name,
+            'channels': slack_channel,
+            'filetype': file_type,
+            'initial_comment': text,
+            'title': title
+        },
+        files = { 'file': file_bytes }).json()
 
 def roundsigfigs(x,sig_figs):
     '''Takes a number x and rounds it to have the
