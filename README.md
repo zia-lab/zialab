@@ -66,12 +66,13 @@ kjfSWXHkWHXS9ZyWodGkOumAUdXdHWbHHHHdNZXHbwWWXWX
 + `srsDG535.py` : control DG 525 signal generator
 + `vega.py` : to-do
 + `verdi.py` : serial control of Verdi
++ `confocal.py` : routines for performing confocal scans
 
 # man : manuals for instruments
 + ...
 
 # softwarecontrol :
-+ `lightfield.py` : controling Lightfield from Python
++ `lightfield.py` : controlling Lightfield from Python
 + `spe2py.py` : importing spe files into Python
 + `speloader.py` : importing sp2 files into Python
 
