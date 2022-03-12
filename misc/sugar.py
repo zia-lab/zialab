@@ -64,7 +64,7 @@ def ding():
 
 pixel_sizes = {'proem': 16, 'pixis': 20, 'pionir': 20} # in um
 
-resolutions = {
+resolutions = { # for IsoPlane
     'proem': {
         '150':[[10,20,25,50,100,150,200,300],
                [0.553,0.553,0.553,0.9875,1.975,2.9625,3.95,5.925]],
@@ -91,6 +91,27 @@ resolutions = {
     },
 }
 
+resolutions_SP2300 = {
+    'pixis': {
+        '150': [[10,20,25,50,100,150,200,300],
+                [1.32,1.32,1.32,1.32,2.11,3.17,4.23,6.34]],
+        '300': [[10,20,25,50,100,150,200,300],
+                [0.648,0.648,0.648,0.648,1.04,1.56,2.08,3.12]],
+    },
+    'proem': {
+        '150': [[10,20,25,50,100,150,200,300],
+                [1.27,1.27,1.27,1.27,2.11,3.17,4.23,6.34]],
+        '300': [[10,20,25,50,100,150,200,300],
+                [0.623,0.623,0.623,0.623,1.039,1.56,2.08,3.12]],
+    },
+    'pionir': {
+        '150': [[10,20,25,50,100,150,200,300],
+                [1.27,1.27,1.27,1.27,2.11,3.17,4.23,6.34]],
+        '300': [[10,20,25,50,100,150,200,300],
+                [0.623,0.623,0.623,0.623,1.039,1.56,2.08,3.12]],
+    },
+}
+
 def slit_to_resolution(grating, slit_width, camera):
     grating_string = re.sub("[^0-9]", "", str(grating))
     if grating_string not in ['50','150','300']:
@@ -107,6 +128,23 @@ def slit_to_resolution(grating, slit_width, camera):
         print("invalid camera choice")
         return None
     return np.interp(slit_width,resolutions[camera][grating_string][0],resolutions[camera][grating_string][1])
+
+def slit_to_resolution_SP2300(grating, slit_width, camera):
+    grating_string = re.sub("[^0-9]", "", str(grating))
+    if grating_string not in ['150','300']:
+        print("Unavailable grating")
+        return None
+    camera = camera.lower()
+    if 'pixis' in camera:
+        camera = 'pixis'
+    elif 'proem' in camera:
+        camera = 'proem'
+    elif 'pionir' in camera:
+        camera = 'pionir'
+    else:
+        print("invalid camera choice")
+        return None
+    return np.interp(slit_width,resolutions_SP2300[camera][grating_string][0],resolutions_SP2300[camera][grating_string][1])
 
 if pushover:
     def send_message(message):
@@ -166,7 +204,7 @@ if slackit:
         }).json()
     def post_file_to_slack(text, file_name, file_bytes, file_type=None, title=None, slack_channel=default_slack_channel):
         return requests.post(
-        'https://slack.com/api/files.upload', 
+        'https://slack.com/api/files.upload',
         {
             'token': slack_token,
             'filename': file_name,
