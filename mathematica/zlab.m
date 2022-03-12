@@ -1,73 +1,118 @@
 (* ::Package:: *)
 
+SpectrumColors[x_, UVcut_:400, IRcut_:650]:=(
+    If[x<=UVcut,
+        Purple,
+        If[x<=IRcut,
+            ColorData["VisibleSpectrum"][x],
+            Magenta]])
 
-UVcut = 400;
-IRcut = 700;
+SpectrumColorsO[x_,opR_,UVcut_:400, IRcut_:650]:=(
+    If[opR>1,
+        op=1,
+        op=opR];
+    If[x<=UVcut,
+        Darker[Purple,1-op],
+        If[x<=IRcut,
+            Darker[ColorData["VisibleSpectrum"][x],1-op],
+            Darker[Magenta,1-op]]])
 
-SpectrumColors[x_]:=(If[x<=UVcut,
-Purple,
-If[x<=IRcut,
-ColorData["VisibleSpectrum"][x],
-Magenta]])
-
-SpectrumPlot[wavespectrumRaw_,plotLabelRaw_:""]:=(
-minWave=Min[First/@wavespectrumRaw];
-maxWave=Max[First/@wavespectrumRaw];
-plotLabel=plotLabelRaw;
-Manipulate[(
-wavespectrum=wavespectrumRaw[[;;;;downSample]];
-wavespectrum=MovingAverage[wavespectrum,smoothBins];
-(*wavespectrum=Transpose[{(First/@wavespectrum)[[2;;;;]],Differences[Last/@wavespectrum]}];*)
-If[logscale,wavespectrum={#[[1]],Log[#[[2]]]}&/@wavespectrum];
-maxLight=Max[Last/@wavespectrum];
-wavespectrum={#[[1]],#[[2]]/maxLight}&/@wavespectrum;
-wavespectrum={#[[1]],#[[2]]*contrast}&/@wavespectrum;
-wavespectrum={#[[1]],If[#[[2]]>=1,1,#[[2]]]}&/@wavespectrum;
-d\[Lambda]=Abs[wavespectrum[[1,1]]-wavespectrum[[2,1]]];
-h=3;
-d=0.5;
 pointTemplate=StringTemplate["`energy` eV (`wave` nm)"];
-peaks=FindPeaks[Last/@wavespectrum,peak\[Sigma]];
-peaks=(wavespectrum[[Round[#[[1]]]]])&/@peaks;
-peaks={#[[1]],#[[2]]*h+h+d}&/@peaks;
-peakNotes=Flatten[{{Red,Point[#]},{Black,Text[pointTemplate[<|"energy"->Round[1240/#[[1]],0.001],"wave"->Round[#[[1]],0.1]|>],#,{-1.1,0},{1,2}]}}&/@peaks];
-notices={};
-If[minWave<UVcut,
-notices=Append[notices,{Dashed,Purple,Line[{{UVcut,0},{UVcut,h}}]}]];
-If[maxWave>IRcut,
-notices=Append[notices,{Dashed,Red,Line[{{IRcut,0},{IRcut,h}}]}]];
-graph = Labeled[
-Framed[
-Graphics[{peakNotes,
-{Darker[If[monochrome,White,SpectrumColors[#[[1]]]],Abs[1-#[[2]]]],Rectangle[{#[[1]],0},{#[[1]]+d\[Lambda],h}]}&/@wavespectrum,
-notices,
-AxisObject[{"Horizontal",h+d},TickDirection->Down,TicksStyle->Black],AxisObject[{"Horizontal",-d},TickDirection->Up,TicksStyle->Black,AxisLabel->Placed["\[Lambda]/nm",Center]],
-Line[{#[[1]],#[[2]]*h+h+d}&/@wavespectrum]},
-ImageSize-> ((WindowSize/.AbsoluteOptions[EvaluationNotebook[]])[[1]]-200),
-AspectRatio->1/5,
-PlotRange->{{\[Lambda]range[[1]]-0.75,\[Lambda]range[[2]]+0.75},All}]
-,FrameMargins->10
-,RoundingRadius->5]
-,label,Top];
-Column[{graph,
-Button["Save",
- Export[SystemDialogInput["FileSave"],Framed[graph,FrameStyle->Transparent,FrameMargins->20]],Method->"Queued"]}]
-),
-Row[{
-Spacer[10],
-Column[{Control[{{\[Lambda]range,{minWave,maxWave}},minWave,maxWave,ControlType->IntervalSlider}],
-Control[{{downSample,2},1,10,1}]}],
-Spacer[10],
-Column[{Control[{{contrast,1},1,10,0.1}],
-Control[{{logscale,False},{True,False}}]}],
-Spacer[10],
-Column[{Control[{{smoothBins,2},1,10,1}],
-Control[{{peak\[Sigma],2.5},0.1,10}]}],
-Spacer[10],
-Column[{
-Control[{{label,plotLabel},ControlType->InputField}],
-Control[{{monochrome,False},{True,False}}]
-}]
-}],
-TrackedSymbols:>True]);
 
+SpectrumPlot[Swaves0_,SPL0_,std0_, baseline0_:{}, plotLabel0_:""]:=
+    Module[{Swaves = Swaves0, SPL = SPL0, std = std0, baseline = baseline0,
+    plotLabel = plotLabel0,
+    maxSPL, plusSTD, minusSTD, plotPL, minWave, maxWave, cWave, peakA,
+    sFun, peakNotes, peaks, p1, p2, prange},
+    (
+    maxSPL = Max[SPL];
+    plusSTD = Transpose[{Swaves,SPL+std}];
+    minusSTD = Transpose[{Swaves,SPL-std}];
+    plotPL = Transpose[{Swaves,Abs[SPL]}];
+    minWave = Swaves[[1]];
+    maxWave = Swaves[[-1]];
+    cWave = (maxWave+minWave)/2;
+    peakA = Association[];
+    sFun = Interpolation[Transpose[{Swaves,SPL}]];
+    Manipulate[(
+        If[KeyExistsQ[peakA,peak\[Sigma]],
+            peakNotes = peakA[peak\[Sigma]],
+            (
+                peaks = FindPeaks[Last /@ plotPL, peak\[Sigma]];
+                peaks = (plotPL[[Round[#[[1]]]]])& /@ peaks;
+                peakNotes = Flatten[{{Red,Tooltip[Point[#], ToString[Round[10^7/#[[1]]]]<>"cm^-1"]},
+                                    {Black,
+                                        Text[pointTemplate[<|"energy"->Round[1240/#[[1]],0.001],
+                                                            "wave"->Round[#[[1]],0.1]|>],#,
+                                                            {-1.1,0},
+                                                            {0,1}]}} & /@ peaks];
+                peakA[peak\[Sigma]] = peakNotes;
+            )
+        ];
+        prange = {centerWave-viewSpan/2, centerWave+viewSpan/2};
+        If[prange[[1]] < minWave,
+            prange[[1]] = minWave];
+        If[prange[[2]] > maxWave,
+            prange[[2]] = maxWave];
+        If[baseline == {},
+            things = {minusSTD, plusSTD, plotPL},
+            things = {minusSTD, plusSTD, plotPL, baseline}];
+        If[baseline == {},
+            styles = {Transparent, Transparent, Blue},
+            styles = {Transparent, Transparent, Blue, Red}];
+        things = MovingAverage[#, movAvgBins] & /@ things;
+        p1 = ListPlot[things,
+            PlotRange->{prange, {0, 1/contrast*maxSPL*1.75}},
+            ImageSize->1200,
+            AspectRatio->1/5,
+            Frame->True,
+            FrameLabel->{"\[Lambda]/nm", None},
+            PlotLabel->"",
+            FrameStyle->Directive[16,Thick],
+            Filling->{1->{2}},
+            FrameTicks->{{None,None},{All,None}},
+            FillingStyle->Directive[Red, Opacity[0.4]],
+            PlotStyle->styles,
+            Joined->True,
+            Epilog->peakNotes
+            ];
+        p2 = Plot[1,{x,minWave,maxWave},
+            ColorFunction->Function[{x,y}, SpectrumColorsO[x,sFun[x]*contrast/maxSPL]],
+            ImageSize->1200,
+            AspectRatio->1/10,
+            Filling->Axis,
+            ColorFunctionScaling->False,
+            FrameTicks->{{None,None}, {None,None}},
+            PlotRange->{prange,{0,1}},
+            PlotPoints->1000,
+            Frame->True,
+            FrameTicks->{Automatic, None},
+            Epilog -> Text[
+                            Style[plotLabel, 
+                                White,
+                                Background -> Black], 
+                                {prange[[2]], 1}, {1, 1}]
+            ];
+        Column[{p2,p1}]
+    ),
+    Row[{
+        Column[{
+            Control[{{contrast,1}, 1, 100, 0.1}],
+            Control[{{peak\[Sigma],5}, 0.1, 10}]
+            }
+        ],
+        Column[{
+            Control[{{centerWave,cWave}, minWave, maxWave}],
+            Control[{{viewSpan,(maxWave-minWave)}, 0, maxWave-minWave}]
+            }
+        ],
+        Column[{
+            Control[{{movAvgBins,1}, 1, 20, 1}]
+            }
+        ]
+        }
+    ],
+    TrackedSymbols:> {contrast, peak\[Sigma], centerWave, viewSpan, movAvgBins}
+    ]
+)
+        ]

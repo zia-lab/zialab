@@ -129,6 +129,23 @@ def slit_to_resolution(grating, slit_width, camera):
         return None
     return np.interp(slit_width,resolutions[camera][grating_string][0],resolutions[camera][grating_string][1])
 
+def slit_to_resolution_SP2300(grating, slit_width, camera):
+    grating_string = re.sub("[^0-9]", "", str(grating))
+    if grating_string not in ['150','300']:
+        print("Unavailable grating")
+        return None
+    camera = camera.lower()
+    if 'pixis' in camera:
+        camera = 'pixis'
+    elif 'proem' in camera:
+        camera = 'proem'
+    elif 'pionir' in camera:
+        camera = 'pionir'
+    else:
+        print("invalid camera choice")
+        return None
+    return np.interp(slit_width,resolutions_SP2300[camera][grating_string][0],resolutions_SP2300[camera][grating_string][1])
+
 if pushover:
     def send_message(message):
         conn = http.client.HTTPSConnection("api.pushover.net",443)
