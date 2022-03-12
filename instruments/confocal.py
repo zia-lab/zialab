@@ -9,7 +9,7 @@ sys.path.append(codebase_dir)
 from zialab.misc.sugar import send_message
 from tenacity import retry, stop_after_attempt
 
-AXES_RANGE = 40. # in mm
+AXES_RANGE = 40. # in mm 700, 838, 562
 
 def navigation_matrix(n1,m1,n2,m2,x1,y1,x2,y2):
     return np.matrix([[-(-m2 * x1 + m1 * x2)/(m2*n1 - m1*n2),-(n2*x1 - n1*x2)/(m2*n1 - m1*n2)],
@@ -115,7 +115,8 @@ def snr_to_vel(scan):
     else:
         return target_vel
 
-def compute_runway(stage, vel, fast=False, tol=0.001):
+
+def compute_runway(stage, vel, fast=False, tol=0.0005):
     '''
     Parameters
     ----------
@@ -129,7 +130,8 @@ def compute_runway(stage, vel, fast=False, tol=0.001):
     '''
     if (not fast) or (vel < 0.00125) or (vel > 0.8):
         stage.DRT(0,1,'1')
-        d = 0.1 # move 100 um
+        span = 0.015
+        d = 4*span
         current_x = stage.qPOS()['1']
         original_vel = stage.qVEL()['1']
         stage.VEL('1',vel)
@@ -144,23 +146,24 @@ def compute_runway(stage, vel, fast=False, tol=0.001):
         times = times-times[0]
         commanded = np.array(stage.bufdata[1])
         actual = np.array(stage.bufdata[2])
-        err = np.abs(np.abs(commanded-actual))
-        maxerrarg = np.argmax(err)
-        err = err[maxerrarg:]
-        errtimes = times[maxerrarg:]
-        erractual = actual[maxerrarg:]
-        for idx, oneerr in enumerate(err):
-            if oneerr < tol:
+        err = np.abs(commanded-actual)
+        for idx, px in enumerate(actual):
+            # and index where the distance travel
+            # is the required one
+            idxf = np.argmin(np.abs((actual-px) - span))
+            errors_in_interval = err[idx:idxf]
+            if all(errors_in_interval < tol):
                 break
-        goodtimearg = idx
-        goodrunway = np.abs(erractual[goodtimearg] - current_x)
+        else:
+            raise Exception('no good runway found')
+        goodrunway = actual[idx] - current_x
         stage.DRT(0,1,'0')
         return goodrunway
     else:
         # interpolate using precomputed values
         vels = np.array([0.0125, 0.025, 0.05, 0.1, 0.2, 0.4, 0.8])
-        runways = np.array([0.00230,0.00370,0.00600,
-                            0.00940,0.01570,0.02740,0.05860])
+        runways = np.array([0.0050,0.0079,0.0097,
+                            0.0112,0.0197,0.0364,0.0596])
         return np.interp(vel,vels,runways)
 
 def linescanner(stage, pharp, linescan, verbose=False):
@@ -404,7 +407,7 @@ def T2linescanner(stage, pharp, linescan, verbose=False):
     TRO(stage, "off")
     return linescan
 
-def T2scanner_retry_alert(stage, retry_state):
+def T2scanner_retry_alert(retry_state):
     alert_msg = 'Failure detected in T2scanner, retrying...'
     send_message(alert_msg)
 
