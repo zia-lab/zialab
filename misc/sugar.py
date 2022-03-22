@@ -113,6 +113,7 @@ resolutions_SP2300 = {
 }
 
 def slit_to_resolution(grating, slit_width, camera):
+    import re
     grating_string = re.sub("[^0-9]", "", str(grating))
     if grating_string not in ['50','150','300']:
         print("Unavailable grating")
