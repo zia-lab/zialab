@@ -40,11 +40,11 @@ if os.path.exists('filter_GUI_state.pkl'):
     print("Loading state ...")
     state = pickle.load(open('filter_GUI_state.pkl','rb'))
 else:
-    state = {'filter0' : 'BLP01-325R',
+    state = {'filter0' : 'Semrock - BLP01-325R',
             'filter1' : '---',
             'filter2' : '---',
             'dic_mirror' : '---',
-            'filter3' : 'BLP01-635R',
+            'filter3' : 'Semrock - BLP01-635R',
             'filter4' : '---',
             'filter5' : '---',
             'scale' : 'linear',
