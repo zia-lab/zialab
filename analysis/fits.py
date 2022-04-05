@@ -120,7 +120,7 @@ def pseudo_voigt_model(num_terms):
 def spectrum_4param_fit(x, y, lineshape_fun, max_peaks,
     wiggle=10, maxfev=100000, de= 100, wiggle_jiggle=200, verbose=False):
     '''
-    Given a three parameter (amplitude, center, width) lineshape function this function
+    Given a four parameter (amplitude, center, width) lineshape function this function
     fits the given data (x,y) for superpositions of several (up to max_peaks) of these
     lineshapes.
 
@@ -129,21 +129,26 @@ def spectrum_4param_fit(x, y, lineshape_fun, max_peaks,
 
     Parameters
     ----------
-    x (array-like 1-D): 
-    y (array-like 1-D): 
-    lineshape_fun (function): a function that receives one parameter (how many terms) and which returns
-    a function of (1 + 3*num_term) parameters, the first one being the independent variable.
-    wiggle (float): starting width of a lineshape.
-    maxfev (int):   how many function evaluations are fed into curve_fit.
-    de (float): limits the upper and lower bound on the center positions.
-    wiggle_jiggle (float): upper bound for the widths of the fitted line-shapes.
-    verbose (bool): whether to print information as the fitting proceeds.
+    - x (array-like 1-D): 
+    - y (array-like 1-D): 
+    - lineshape_fun  (function): a function that receives one parameter (how
+    many  terms)  and  which  returns  a  function  of  (1  +  3*num_term)
+    parameters,  the  first  one  being  the  independent variable.
+    - wiggle (float): starting width of a lineshape.
+    - maxfev (int): how many function evaluations are fed into curve_fit.
+    -  de  (float):  limits  the  upper  and  lower  bound  on  the center
+    positions.
+    -  wiggle_jiggle  (float):  upper  bound  for the widths of the fitted
+    line-  shapes.  verbose  (bool):  whether  to print information as the
+    fitting proceeds.
 
     Returns
     -------
-    fit_history (np.array): a list of fitted parameters as the fitting increases the number of terms.
-    cosine_sims (np.array): cosine similarity between y and the fitted y as the fitting increases the number of terms.
-    rms_errors  (np.array): RMS errors 
+    -  fit_history  (np.array): a list of fitted parameters as the fitting
+    increases the number of terms.
+    - cosine_sims (np.array): cosine similarity between y and the fitted y
+    as the fitting increases the number of terms.
+    - rms_errors  (np.array): RMS errors 
     
     '''
     fit_params = []
@@ -184,9 +189,9 @@ def spectrum_4param_fit(x, y, lineshape_fun, max_peaks,
 def spectrum_3param_fit(x, y, lineshape_fun, max_peaks, 
     wiggle=10, maxfev=100000, de= 100, wiggle_jiggle=200, verbose=False):
     '''
-    Given  a  four parameter (amplitude, center, width1, width2) lineshape
-    function this function fits the given data (x,y) for superpositions of
-    several (up to max_peaks) of these lineshapes.
+    Given  a three parameter (amplitude, center, width) lineshape function
+    this  function fits the given data (x,y) for superpositions of several
+    (up to max_peaks) of these lineshapes.
 
     Fitting  progresses  by  the solver adding one term at a time, seeding
     the  solver with a starting center position at the largest discrepancy
@@ -194,25 +199,26 @@ def spectrum_3param_fit(x, y, lineshape_fun, max_peaks,
 
     Parameters
     ----------
-    x (array-like 1-D): 
-    y (array-like 1-D): 
-    lineshape_fun  (function): a function that receives one parameter (how
+    - x (array-like 1-D): 
+    - y (array-like 1-D): 
+    - lineshape_fun  (function): a function that receives one parameter (how
     many  terms)  and  which  returns  a  function  of  (1  +  3*num_term)
-    parameters,  the  first  one  being  the  independent variable. wiggle
-    (float): starting width of a lineshape.
-    maxfev (int):   how many function evaluations are fed into curve_fit.
-    de (float): limits the upper and lower bound on the center positions.
-    wiggle_jiggle  (float): upper bound for the widths of the fitted line-
-    shapes.  verbose  (bool):  whether to print information as the fitting
-    proceeds.
+    parameters,  the  first  one  being  the  independent variable.
+    - wiggle (float): starting width of a lineshape.
+    - maxfev (int): how many function evaluations are fed into curve_fit.
+    -  de  (float):  limits  the  upper  and  lower  bound  on  the center
+    positions.
+    -  wiggle_jiggle  (float):  upper  bound  for the widths of the fitted
+    line-  shapes.  verbose  (bool):  whether  to print information as the
+    fitting proceeds.
 
     Returns
     -------
-    fit_history  (np.array):  a  list  of fitted parameters as the fitting
+    -  fit_history  (np.array): a list of fitted parameters as the fitting
     increases the number of terms.
-    cosine_sims  (np.array):  cosine similarity between y and the fitted y
+    - cosine_sims (np.array): cosine similarity between y and the fitted y
     as the fitting increases the number of terms.
-    rms_errors  (np.array): RMS errors 
+    - rms_errors  (np.array): RMS errors 
     
     '''
     fit_params = []
