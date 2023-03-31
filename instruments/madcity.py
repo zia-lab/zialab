@@ -135,7 +135,7 @@ class MadPiezo:
 
     def get_product_info(self):
         '''
-        retrive product information from the firmware.
+        Retrieve product information from the firmware.
         '''
         product_info = Product_Information(0, 0, 0, 0, 0, 0)
         if self.connected:
@@ -156,7 +156,7 @@ class MadPiezo:
 
     def open(self):
         '''
-        connect the device
+        Connect to the device.
         '''
         self.handle = self._open()
         if self.handle != 0:
@@ -168,7 +168,7 @@ class MadPiezo:
 
     def close(self):
         '''
-        disconnect the device.
+        Disconnect the device.
         '''
         self.move('x', self.home_pos)
         self.move('y', self.home_pos)
@@ -183,7 +183,7 @@ class MadPiezo:
     '''''''''''''''''''''
     def read_axis(self, axis):
         '''
-        read the position of a given axis.
+        Read the position of a given axis.
         '''
         if axis in ['x', 'X', 1]:
             x_pos = self._read_axis(c_uint(1), self.handle)
@@ -199,7 +199,7 @@ class MadPiezo:
 
     def qPOS(self):
         '''
-        query the x-y-z positions of the stage.
+        Query the x-y-z positions of the stage.
         '''
         x_pos = self._read_axis(c_uint(1), self.handle)
         y_pos = self._read_axis(c_uint(2), self.handle)
@@ -211,17 +211,17 @@ class MadPiezo:
         move an axis to a given position within the travel range.
         '''
         if axis in ['x', 'X', 1]:
-            assert 0 <= pos < self.x_cal, 'Position outside of travel range'
+            assert 0 <= pos < self.x_cal, 'Position outside of travel range.'
             self._write_axis(c_double(pos), c_uint(1), self.handle)
             sleep(0.1)
             self.qPOS()
         elif axis in ['y', 'Y', 2]:
-            assert 0 <= pos < self.y_cal, 'Position outside of travel range'
+            assert 0 <= pos < self.y_cal, 'Position outside of travel range.'
             self._write_axis(c_double(pos), c_uint(2), self.handle)
             sleep(0.1)
             self.qPOS()
         elif axis in ['z', 'Z', 3]:
-            assert 0 <= pos < self.z_cal, 'Position outside of travel range'
+            assert 0 <= pos < self.z_cal, 'Position outside of travel range.'
             self._write_axis(c_double(pos), c_uint(3), self.handle)
             sleep(0.1)
             self.qPOS()
@@ -230,7 +230,7 @@ class MadPiezo:
 
     def monitor_axis(self, axis, pos):
         '''
-        move and read an axis.
+        Move and read an axis.
         '''
         if axis in ['x', 'X', 1]:
             x_pos = self._monitor_axis(c_double(pos), c_uint(1), self.handle)
@@ -250,7 +250,7 @@ class MadPiezo:
     '''''''''''''''''''''''''''''''''
     def reset_iss(self):
         '''
-        reset the iss option to the default values. No axis binding, low-high polarity, pixel clock is bound to waveform read.
+        Reset the iss option to the default values. No axis binding, low-high polarity, pixel clock is bound to waveform read.
         '''
         if self.connected:
             self._reset_iss(self.handle)
@@ -299,7 +299,7 @@ class MadPiezo:
     '''''''''''''''''''''
     def setup_wfload(self, axis, npoints, dwell_time, waveform):
         '''
-        sets up a waveform load on a specific axis.
+        Sets up a waveform load on a specific axis.
 
         dwell_time is in miliseconds. npoints should correspond to the size of the waveform.
         '''
@@ -322,7 +322,7 @@ class MadPiezo:
 
     def waveform_acquire(self, axis, npoints, waveform):
         '''
-        triggers a synchronous waveform read and load on an axis.
+        Triggers a synchronous waveform read and load on an axis.
         '''
         wf = (c_double*npoints)(*waveform)
         error_code = self._waveform_acquire(c_uint(axis), c_uint(npoints), pointer(wf), self.handle)
@@ -331,7 +331,7 @@ class MadPiezo:
 
     def read_waveform(self, axis, npoints, dwell_time):
         '''
-        sets up and triggers a waveform read on an axis.
+        Sets up and triggers a waveform read on an axis.
 
         note that dwell_time is fed into a dictionary with only few allowed values.
         dwell_time: 3->267us, 4->500us, 5->1ms, 6->2ms (for our 20-bit communication)
