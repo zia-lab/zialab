@@ -50,7 +50,7 @@ kjfSWXHkWHXS9ZyWodGkOumAUdXdHWbHHHHdNZXHbwWWXWX
 + `cryopi.py` : control RPi in cryostat
 + `cube.py` : control Cube laser through serial connection
 + `flipmirror.py` : control flipmirror using Raspberry Pi
-+ `funcgen33120A.py` : to-do
++ `funcgen33120A.py` : HP 33120A function / arbitrary waveform generator
 + `hayear_camera.py` : brute-force automation of the hayear camera
 + `innova300.py` : serial connection to the Innova 300.
 + `lakeshore.py` : control the Lakeshore temp controller
