@@ -1,9 +1,10 @@
 {
 	"folders": [
 		{
-			"name": "qdef",
-			"path": "../qdef"
+			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"workbench.colorTheme": "August - Gruvbox (Darker)"
+	}
 }

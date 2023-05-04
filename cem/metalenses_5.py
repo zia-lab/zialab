@@ -65,7 +65,8 @@ pi = np.pi
 # setup directories
 
 home_folder = os.path.expanduser('~')
-s4dir = os.path.join(home_folder,'Google Drive/Zia Lab/CEM/S4')
+# s4dir = os.path.join(home_folder,'Google Drive/Zia Lab/CEM/S4')
+s4dir = '/Users/juan/ZiaLab/CEM/S4'
 
 ##### log dirs #####
 logdir = ''
