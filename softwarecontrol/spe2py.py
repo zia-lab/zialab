@@ -213,7 +213,7 @@ def read_at(file, pos, size, ntype):
     return np.fromfile(file, ntype, size)
 
 class SpeFile:
-    def __init__(self, filepath=None):
+    def __init__(self, filepath=None, skip_wavelength=False):
         assert isinstance(filepath, str), 'Filepath must be a single string'
         self.filepath = filepath
         with open(self.filepath) as file:
@@ -229,7 +229,10 @@ class SpeFile:
             # Note: these methods depend on self.footer
             self.xdim, self.ydim = self._get_dims()
             self.roi, self.nroi = self._get_roi_info()
-            self.wavelength = self._get_wavelength()
+            if skip_wavelength: 
+                self.wavelength = None
+            else:
+                self.wavelength = self._get_wavelength()
 
             self.xcoord, self.ycoord = self._get_coords()
 

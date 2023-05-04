@@ -159,12 +159,22 @@ class LField():
         self.combine_mode = {'sum': 1, 'average': 2}[combine_by]
         self.experiment.SetValue(ExperimentSettings.FrameSettingsAverage,
                            combine_mode)
-    def set_filename(self,radix):
+    def set_filename(self,radix,timetag=True):
         '''
         Set the filename of the file to be saved using a provided basename
         and attaching the epoch time with the last digit at 10^-7 s.
+        Parameters
+        ----------
+        radix (str): filename to be saved.
+        timetage (bool): whether to add timestamp or not
+        Returns
+        -------
+        None
         '''
-        fname = '%s-%s' % (radix, str(time.time()).ljust(18,'0').replace('.',''))
+        if timetag:
+            fname = '%s-%s' % (radix, str(time.time()).ljust(18,'0').replace('.',''))
+        else:
+            fname = radix
         self.experiment.SetValue(ExperimentSettings.FileNameGenerationBaseFileName,
                            fname)
     def set_shutter_mode(self,mode):

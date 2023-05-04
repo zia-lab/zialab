@@ -13,7 +13,7 @@ class VerdiGUI():
     text_color = 'black'
 
     def __init__(self, verbose=True):
-        self.IP = '172.18.129.48'
+        self.IP = '10.9.93.168'
         self.verbose = verbose
         self.platform = sys.platform
         self.verdi = RemoteVerdi(IP=self.IP)
