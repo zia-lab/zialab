@@ -11,7 +11,6 @@
 
 # Edited by David on 2020
 # based on Yang's old code
-# where he based that from is not known
 
 from ctypes import Structure, CDLL, pointer, c_long, c_char
 from ctypes import c_ubyte, c_double, c_uint, c_int, c_short, byref
@@ -59,13 +58,16 @@ class MadPiezo:
     _line_clock               = MCL['MCL_LineClock']
     _frame_clock              = MCL['MCL_FrameClock']
     _aux_clock                = MCL['MCL_AuxClock']
-    _reset_iss                = MCL['MCL_IssBindClockToAxis']
+    _reset_iss                = MCL['MCL_IssResetDefaults']
+    _configure_polarity       = MCL['MCL_IssConfigurePolarity']
     _bind_clock.restype       = c_int
     _pixel_clock.restype      = c_int
     _line_clock.restype       = c_int
     _frame_clock.restype      = c_int
     _aux_clock.restype        = c_int
     _reset_iss.restype        = c_int
+    _configure_polarity.restype        = c_int
+    
     # waveform acquisition functions.
     _read_waveform            = MCL['MCL_ReadWaveFormN']
     _load_waveform            = MCL['MCL_LoadWaveFormN']
@@ -213,17 +215,17 @@ class MadPiezo:
         if axis in ['x', 'X', 1]:
             assert 0 <= pos < self.x_cal, 'Position outside of travel range.'
             self._write_axis(c_double(pos), c_uint(1), self.handle)
-            sleep(0.1)
+            sleep(0.01)
             self.qPOS()
         elif axis in ['y', 'Y', 2]:
             assert 0 <= pos < self.y_cal, 'Position outside of travel range.'
             self._write_axis(c_double(pos), c_uint(2), self.handle)
-            sleep(0.1)
+            sleep(0.01)
             self.qPOS()
         elif axis in ['z', 'Z', 3]:
             assert 0 <= pos < self.z_cal, 'Position outside of travel range.'
             self._write_axis(c_double(pos), c_uint(3), self.handle)
-            sleep(0.1)
+            sleep(0.01)
             self.qPOS()
         else:
             print('Unkown axis.')
@@ -269,6 +271,16 @@ class MadPiezo:
             1=X-axis, 2=Y-axis, 3=Z-axis, 4=Aux-axis, 5=Waveform Read, 6=Waveform Write
         '''
         self._bind_clock(c_int(clock), c_int(mode), c_int(axis), self.handle)
+
+    def configure_polarity(self, clock, mode):
+        '''
+        Configures the polarity of the external clock pulses.
+        Modes:
+            2=low to high pulse, 3=high to low pulse
+        clock (int):
+            1=Pixel, 2=Line, 3=Frame, 4=Aux
+        '''
+        self._configure_polarity(c_int(clock), c_int(mode), self.handle)
 
     def pixel_clock(self):
         '''
@@ -346,10 +358,21 @@ class MadPiezo:
         else:
             print('Error Code:{}'.format(error_code))
 
-    def load_waveform(self, axis, npoints, dwell_time, waveform):
+    def load_waveform(self, axis, waveform, dwell_time):
         '''
-        sets up and triggers a waveform read on an axis.
+        Sets up and triggers a waveform load on an axis.
+        Parameters
+        ----------
+        axis (int)
+        waveform (list or np.array) : points to visit in the waveform in um, max 6666 points.
+        dwell_time (float) : time between individual move commands from the waveform sent to the stage, given in ms. Range from 1/6 to 5ms.
+        Returns
+        -------
+        None
         '''
+        npoints = len(waveform)
+        assert npoints <= 6666, "Max number of points for Nano-Drive 20 bit Three Axis (USB 2.0) is 6666"
+        assert 1/6. <= dwell_time <= 5, "Range of values for Nano-Drive 20 bit Three Axis (USB 2.0) is between 1/6 and 5 ms"
         wf = (c_double*npoints)(*waveform) # a waveform that we provide the firmware with, an input.
         error_code = self._load_waveform(c_uint(axis), c_uint(npoints), c_double(dwell_time), pointer(wf), self.handle)
         if error_code!=0:
