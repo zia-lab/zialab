@@ -9,9 +9,18 @@ import requests, io, json
 import time, os
 
 if platform == 'win32':
-    import winsound
+    try:
+        import winsound
+        sound_avail = True
+    except:
+        sound_avail = False
 else:
-    import pygame
+    try:
+        import pygame
+        sound_avail = True
+    except:
+        sound_avail = False
+        print("No pygame")
 
 pushover = False
 slackit = False
@@ -21,7 +30,7 @@ try:
     pushover_user = secrets['pushover_user']
     pushover_token = secrets['pushover_token']
     slack_token = secrets['slack_token']
-    slackit = True
+    slackit  = True
     pushover = True
 except:
     print("Ask David about secrets.")
@@ -43,14 +52,17 @@ def wait(wait_duration=0.1):
     time.sleep(wait_duration)
 
 def bell():
-    if platform == 'win32':
-        winsound.PlaySound(os.path.join(codebase_dir,'sounds','bell.wav'),
-                   winsound.SND_ASYNC)
+    if sound_avail:
+        if platform == 'win32':
+            winsound.PlaySound(os.path.join(codebase_dir,'sounds','bell.wav'),
+                    winsound.SND_ASYNC)
+        else:
+            pygame.init()
+            pygame.mixer.init()
+            sounda = pygame.mixer.Sound(os.path.join(codebase_dir,'sounds','bell.wav'))
+            sounda.play()
     else:
-        pygame.init()
-        pygame.mixer.init()
-        sounda = pygame.mixer.Sound(os.path.join(codebase_dir,'sounds','bell.wav'))
-        sounda.play()
+        print("No sound available, consider installing pygame or winsound")
 
 def ding():
     if platform == 'win32':
@@ -194,27 +206,52 @@ if slackit:
     default_slack_channel = '#datahose'
     slack_icon_emoji = ':see_no_evil:'
     slack_user_name = 'labbot'
-    def post_message_to_slack(text, blocks = None, slack_channel = default_slack_channel):
-        return requests.post('https://slack.com/api/chat.postMessage', {
-            'token': slack_token,
-            'channel': slack_channel,
-            'text': text,
-            'icon_emoji': slack_icon_emoji,
-            'username': slack_user_name,
-            'blocks': json.dumps(blocks) if blocks else None
-        }).json()
-    def post_file_to_slack(text, file_name, file_bytes, file_type=None, title=None, slack_channel=default_slack_channel):
-        return requests.post(
-        'https://slack.com/api/files.upload',
-        {
-            'token': slack_token,
-            'filename': file_name,
-            'channels': slack_channel,
-            'filetype': file_type,
-            'initial_comment': text,
-            'title': title
-        },
-        files = { 'file': file_bytes }).json()
+    def post_message_to_slack(text, blocks = None, thread_ts = None, slack_channel = default_slack_channel):
+        if thread_ts == None:
+            return requests.post('https://slack.com/api/chat.postMessage', {
+                'token': slack_token,
+                'channel': slack_channel,
+                'text': text,
+                'icon_emoji': slack_icon_emoji,
+                'username': slack_user_name,
+                'blocks': json.dumps(blocks) if blocks else None
+            }).json()
+        else:
+            return requests.post('https://slack.com/api/chat.postMessage', {
+                'token': slack_token,
+                'channel': slack_channel,
+                'text': text,
+                'icon_emoji': slack_icon_emoji,
+                'username': slack_user_name,
+                'thread_ts': thread_ts,
+                'blocks': json.dumps(blocks) if blocks else None
+            }).json()
+    def post_file_to_slack(text, file_name, file_bytes, file_type=None, title=None, thread_ts = None, slack_channel=default_slack_channel):
+        if thread_ts == None:
+            return requests.post(
+            'https://slack.com/api/files.upload',
+            {
+                'token': slack_token,
+                'filename': file_name,
+                'channels': slack_channel,
+                'filetype': file_type,
+                'initial_comment': text,
+                'title': title
+            },
+            files = { 'file': file_bytes }).json()
+        else:
+            return requests.post(
+            'https://slack.com/api/files.upload',
+            {
+                'token': slack_token,
+                'filename': file_name,
+                'channels': slack_channel,
+                'filetype': file_type,
+                'initial_comment': text,
+                'thread_ts': thread_ts,
+                'title': title
+            },
+            files = { 'file': file_bytes }).json()
 
 def roundsigfigs(x,sig_figs):
     '''Takes a number x and rounds it to have the
