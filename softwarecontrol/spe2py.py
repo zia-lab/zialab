@@ -208,6 +208,22 @@ def load2D(fname, filedir):
     {Spectrometer} + {Camera}, Intensity Calibration: {Intensity Calibration}'''.format(**metadata)
     return waves, counts, metadata
 
+def loadImage(fname, filedir):
+    '''
+    This function loads a two-dimensional array of data. It's useful when loading data from an uncalibrated spectrograph.
+    Parameters
+    ----------
+    fname (str): name of the spe file
+    filedir (str): directory of the spe file
+    Returns
+    -------
+    data (np.array): array with the data contained in the spe.
+    '''
+    full_fname = os.path.join(filedir, fname)
+    spe_data = SpeFile(full_fname)
+    data = (spe_data.data[0][0])
+    return data
+
 def read_at(file, pos, size, ntype):
     file.seek(pos)
     return np.fromfile(file, ntype, size)
