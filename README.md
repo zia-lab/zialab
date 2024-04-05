@@ -58,6 +58,7 @@ kjfSWXHkWHXS9ZyWodGkOumAUdXdHWbHHHHdNZXHbwWWXWX
 + `mmeter34401A.py` : agilent 34401A via serial connection
 + `montana.py` : control of the Montana cryostat through ethernet
 + `nanocube.py` : nanopositioning near absolute zero
++ `nanopz.py` : Newport NanoPZ stage
 + `pda36a.py` : reading optical power from a Thorlabs photodiode
 + `picoharp.py` : control PicoHarp
 + `powerE3631A.py` : to-do
@@ -69,7 +70,7 @@ kjfSWXHkWHXS9ZyWodGkOumAUdXdHWbHHHHdNZXHbwWWXWX
 + `confocal.py` : routines for performing confocal scans
 
 # man : manuals for instruments
-+ ...
++ Manuals for some instruments.
 
 # softwarecontrol :
 + `lightfield.py` : controlling Lightfield from Python
